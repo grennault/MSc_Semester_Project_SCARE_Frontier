@@ -1,0 +1,21 @@
+The SCARE-Frontier
+
+    Status: proposal
+    Type: Semester
+    Description:
+
+    Although the field of side-channel-assisted reverse engineering (SCARE) in cryptography has seen a steady supply of works throughout the last decade, the first practical attack on undisclosed AES-like ciphers with hidden SubBytes, ShiftRows and MixColumns functions, verified on commodity hardware, was only recently proposed by Caforio et al. [1]. In this paper, the authors heavily relied on the newly introduced side-channel-assisted differential plaintext attack (SCADPA) methodology [2,3] that consists of an amalgamation of differential power analysis and the tools from conventional differential cryptanalysis.
+
+    The resulting recovery procedures targeted straightforward, unprotected implementations of AES-like ciphers on both 8-bit and 32-bit architectures. However, increasingly, software implementations of cryptographic algorithms are being enriched with protective measures that aim to thwart side-channel attacks. In particular, shuffling and masking belong to the most commonly deployed techniques which were adopted by standardization agencies such as ANSSI [4]. Such protections are also conceivable for AES-like ciphers with secret components, and as such, would impede known reverse engineering endeavours. In this project, we investigate this last frontier of a practical SCADPA-based SCARE of secret AES-like algorithms that are protected by a set of known side-channel countermeasures.
+
+    [1] https://eprint.iacr.org/2021/1252.pdf
+    [2] https://eprint.iacr.org/2017/1166.pdf
+    [3] https://eprint.iacr.org/2020/210.pdf
+    [4] https://github.com/ANSSI-FR/secAES-ATmega8515
+    Requirements: COM-401, COM-501 (preferably), Good knowledge of probability/statistics, good low-level programming skills (C, AVR/ARM assembly), some experience with embedded systems and microcontrollers.
+
+
+https://lasec.epfl.ch/php_code/projects/available/available_detail.php
+
+https://github.com/newaetech/chipwhisperer
+https://chipwhisperer.readthedocs.io/en/latest/index.html#overview

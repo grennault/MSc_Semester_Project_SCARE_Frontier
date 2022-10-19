@@ -1,0 +1,3 @@
+Keep MULTIPLY_AS_A_FUNCTION ?
+
+Keep enc_multi_getpt ? 
