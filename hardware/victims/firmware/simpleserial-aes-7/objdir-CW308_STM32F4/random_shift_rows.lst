@@ -1,0 +1,177 @@
+   1              		.cpu cortex-m4
+   2              		.eabi_attribute 20, 1
+   3              		.eabi_attribute 21, 1
+   4              		.eabi_attribute 23, 3
+   5              		.eabi_attribute 24, 1
+   6              		.eabi_attribute 25, 1
+   7              		.eabi_attribute 26, 1
+   8              		.eabi_attribute 30, 4
+   9              		.eabi_attribute 34, 1
+  10              		.eabi_attribute 18, 4
+  11              		.file	"random_shift_rows.c"
+  12              		.text
+  13              	.Ltext0:
+  14              		.cfi_sections	.debug_frame
+  15              		.section	.text.Randomize_permuation,"ax",%progbits
+  16              		.align	1
+  17              		.global	Randomize_permuation
+  18              		.arch armv7e-m
+  19              		.syntax unified
+  20              		.thumb
+  21              		.thumb_func
+  22              		.fpu softvfp
+  24              	Randomize_permuation:
+  25              	.LFB0:
+  26              		.file 1 ".././crypto7/tiny-AES128-C/random_shift_rows.c"
+   1:.././crypto7/tiny-AES128-C/random_shift_rows.c **** // Random AES Shift Rows function
+   2:.././crypto7/tiny-AES128-C/random_shift_rows.c **** 
+   3:.././crypto7/tiny-AES128-C/random_shift_rows.c **** /*****************************************************************************/
+   4:.././crypto7/tiny-AES128-C/random_shift_rows.c **** /* Includes:                                                                 */
+   5:.././crypto7/tiny-AES128-C/random_shift_rows.c **** /*****************************************************************************/
+   6:.././crypto7/tiny-AES128-C/random_shift_rows.c **** #include <stdlib.h>
+   7:.././crypto7/tiny-AES128-C/random_shift_rows.c **** #include <stdint.h>
+   8:.././crypto7/tiny-AES128-C/random_shift_rows.c **** #include <string.h> // CBC mode, for memset
+   9:.././crypto7/tiny-AES128-C/random_shift_rows.c **** 
+  10:.././crypto7/tiny-AES128-C/random_shift_rows.c **** /*****************************************************************************/
+  11:.././crypto7/tiny-AES128-C/random_shift_rows.c **** /* Defines:                                                                  */
+  12:.././crypto7/tiny-AES128-C/random_shift_rows.c **** /*****************************************************************************/
+  13:.././crypto7/tiny-AES128-C/random_shift_rows.c **** // The number of columns comprising a state in AES. This is a constant in AES. Value=4
+  14:.././crypto7/tiny-AES128-C/random_shift_rows.c **** #define Nb 4
+  15:.././crypto7/tiny-AES128-C/random_shift_rows.c **** // The number of 32 bit words in a key.
+  16:.././crypto7/tiny-AES128-C/random_shift_rows.c **** #define Nk 4
+  17:.././crypto7/tiny-AES128-C/random_shift_rows.c **** // Key length in bytes [128 bit]
+  18:.././crypto7/tiny-AES128-C/random_shift_rows.c **** #define KEYLEN 16
+  19:.././crypto7/tiny-AES128-C/random_shift_rows.c **** // The number of rounds in AES Cipher.
+  20:.././crypto7/tiny-AES128-C/random_shift_rows.c **** #define Nr 10
+  21:.././crypto7/tiny-AES128-C/random_shift_rows.c **** 
+  22:.././crypto7/tiny-AES128-C/random_shift_rows.c **** /*****************************************************************************/
+  23:.././crypto7/tiny-AES128-C/random_shift_rows.c **** /* Private variables:                                                        */
+  24:.././crypto7/tiny-AES128-C/random_shift_rows.c **** /*****************************************************************************/
+  25:.././crypto7/tiny-AES128-C/random_shift_rows.c **** 
+  26:.././crypto7/tiny-AES128-C/random_shift_rows.c **** // The lookup-tables are marked const so they can be placed in read-only storage instead of RAM
+  27:.././crypto7/tiny-AES128-C/random_shift_rows.c **** // The numbers below can be computed dynamically trading ROM for RAM -
+  28:.././crypto7/tiny-AES128-C/random_shift_rows.c **** // This can be useful in (embedded) bootloader applications, where ROM is often limited.
+  29:.././crypto7/tiny-AES128-C/random_shift_rows.c **** 
+  30:.././crypto7/tiny-AES128-C/random_shift_rows.c **** uint8_t shift_rows[16] = {
+  31:.././crypto7/tiny-AES128-C/random_shift_rows.c ****     // 0     1    2      3     4    5     6     7      8    9     A      B    C     D     E     F
+  32:.././crypto7/tiny-AES128-C/random_shift_rows.c ****     // Normal Shift rows
+  33:.././crypto7/tiny-AES128-C/random_shift_rows.c ****     0x00, 0x01, 0x02, 0x03, 0x05, 0x06, 0x07, 0x04, 0x0A, 0x0B, 0x08, 0x09, 0x0F, 0x0C, 0x0D, 0x0E}
+  34:.././crypto7/tiny-AES128-C/random_shift_rows.c **** /*    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0
+  35:.././crypto7/tiny-AES128-C/random_shift_rows.c ****  */
+  36:.././crypto7/tiny-AES128-C/random_shift_rows.c **** 
+  37:.././crypto7/tiny-AES128-C/random_shift_rows.c **** void Randomize_permuation(void)
+  38:.././crypto7/tiny-AES128-C/random_shift_rows.c **** {
+  27              		.loc 1 38 1 view -0
+  28              		.cfi_startproc
+  29              		@ args = 0, pretend = 0, frame = 0
+  30              		@ frame_needed = 0, uses_anonymous_args = 0
+  39:.././crypto7/tiny-AES128-C/random_shift_rows.c ****   srand(clock());
+  31              		.loc 1 39 3 view .LVU1
+  38:.././crypto7/tiny-AES128-C/random_shift_rows.c ****   srand(clock());
+  32              		.loc 1 38 1 is_stmt 0 view .LVU2
+  33 0000 70B5     		push	{r4, r5, r6, lr}
+  34              	.LCFI0:
+  35              		.cfi_def_cfa_offset 16
+  36              		.cfi_offset 4, -16
+  37              		.cfi_offset 5, -12
+  38              		.cfi_offset 6, -8
+  39              		.cfi_offset 14, -4
+  40              		.loc 1 39 9 view .LVU3
+  41 0002 FFF7FEFF 		bl	clock
+  42              	.LVL0:
+  43 0006 0B4D     		ldr	r5, .L4
+  44              		.loc 1 39 3 view .LVU4
+  45 0008 FFF7FEFF 		bl	srand
+  46              	.LVL1:
+  40:.././crypto7/tiny-AES128-C/random_shift_rows.c ****   uint8_t i, j, tmp;
+  47              		.loc 1 40 3 is_stmt 1 view .LVU5
+  41:.././crypto7/tiny-AES128-C/random_shift_rows.c ****   for (i = 15; i > 0; i--)
+  48              		.loc 1 41 3 view .LVU6
+  49              		.loc 1 41 16 view .LVU7
+  39:.././crypto7/tiny-AES128-C/random_shift_rows.c ****   uint8_t i, j, tmp;
+  50              		.loc 1 39 3 is_stmt 0 view .LVU8
+  51 000c 1024     		movs	r4, #16
+  42:.././crypto7/tiny-AES128-C/random_shift_rows.c ****   {
+  43:.././crypto7/tiny-AES128-C/random_shift_rows.c ****     // j = ((uint8_t)rand()) >> 4; // A random integer such that  0 ≤ j < 16
+  44:.././crypto7/tiny-AES128-C/random_shift_rows.c ****     j = ((uint8_t)rand()) % (i + 1); // A random integer Fisher
+  45:.././crypto7/tiny-AES128-C/random_shift_rows.c ****     tmp = shift_rows[i];
+  46:.././crypto7/tiny-AES128-C/random_shift_rows.c ****     shift_rows[i] = shift_rows[j];
+  52              		.loc 1 46 31 view .LVU9
+  53 000e A5F10F06 		sub	r6, r5, #15
+  54              	.LVL2:
+  55              	.L2:
+  44:.././crypto7/tiny-AES128-C/random_shift_rows.c ****     tmp = shift_rows[i];
+  56              		.loc 1 44 5 is_stmt 1 discriminator 3 view .LVU10
+  44:.././crypto7/tiny-AES128-C/random_shift_rows.c ****     tmp = shift_rows[i];
+  57              		.loc 1 44 19 is_stmt 0 discriminator 3 view .LVU11
+  58 0012 FFF7FEFF 		bl	rand
+  59              	.LVL3:
+  44:.././crypto7/tiny-AES128-C/random_shift_rows.c ****     tmp = shift_rows[i];
+  60              		.loc 1 44 27 discriminator 3 view .LVU12
+  61 0016 C0B2     		uxtb	r0, r0
+  62 0018 B0FBF4F3 		udiv	r3, r0, r4
+  63 001c 04FB1300 		mls	r0, r4, r3, r0
+  64              	.LVL4:
+  45:.././crypto7/tiny-AES128-C/random_shift_rows.c ****     shift_rows[i] = shift_rows[j];
+  65              		.loc 1 45 5 is_stmt 1 discriminator 3 view .LVU13
+  41:.././crypto7/tiny-AES128-C/random_shift_rows.c ****   {
+  66              		.loc 1 41 3 is_stmt 0 discriminator 3 view .LVU14
+  67 0020 013C     		subs	r4, r4, #1
+  68              	.LVL5:
+  45:.././crypto7/tiny-AES128-C/random_shift_rows.c ****     shift_rows[i] = shift_rows[j];
+  69              		.loc 1 45 9 discriminator 3 view .LVU15
+  70 0022 2B78     		ldrb	r3, [r5]	@ zero_extendqisi2
+  71              	.LVL6:
+  72              		.loc 1 46 5 is_stmt 1 discriminator 3 view .LVU16
+  73              		.loc 1 46 31 is_stmt 0 discriminator 3 view .LVU17
+  74 0024 325C     		ldrb	r2, [r6, r0]	@ zero_extendqisi2
+  75              		.loc 1 46 19 discriminator 3 view .LVU18
+  76 0026 05F80129 		strb	r2, [r5], #-1
+  47:.././crypto7/tiny-AES128-C/random_shift_rows.c ****     shift_rows[j] = tmp;
+  77              		.loc 1 47 5 is_stmt 1 discriminator 3 view .LVU19
+  41:.././crypto7/tiny-AES128-C/random_shift_rows.c ****   {
+  78              		.loc 1 41 3 is_stmt 0 discriminator 3 view .LVU20
+  79 002a 012C     		cmp	r4, #1
+  80              		.loc 1 47 19 discriminator 3 view .LVU21
+  81 002c 3354     		strb	r3, [r6, r0]
+  41:.././crypto7/tiny-AES128-C/random_shift_rows.c ****   {
+  82              		.loc 1 41 23 is_stmt 1 discriminator 3 view .LVU22
+  41:.././crypto7/tiny-AES128-C/random_shift_rows.c ****   {
+  83              		.loc 1 41 16 discriminator 3 view .LVU23
+  41:.././crypto7/tiny-AES128-C/random_shift_rows.c ****   {
+  84              		.loc 1 41 3 is_stmt 0 discriminator 3 view .LVU24
+  85 002e F0D1     		bne	.L2
+  48:.././crypto7/tiny-AES128-C/random_shift_rows.c ****   }
+  49:.././crypto7/tiny-AES128-C/random_shift_rows.c **** }...
+  86              		.loc 1 49 1 view .LVU25
+  87 0030 70BD     		pop	{r4, r5, r6, pc}
+  88              	.L5:
+  89 0032 00BF     		.align	2
+  90              	.L4:
+  91 0034 0F000000 		.word	.LANCHOR0+15
+  92              		.cfi_endproc
+  93              	.LFE0:
+  95              		.global	shift_rows
+  96              		.data
+  97              		.set	.LANCHOR0,. + 0
+ 100              	shift_rows:
+ 101 0000 00010203 		.ascii	"\000\001\002\003\005\006\007\004\012\013\010\011\017"
+ 101      05060704 
+ 101      0A0B0809 
+ 101      0F
+ 102 000d 0C0D0E   		.ascii	"\014\015\016"
+ 103              		.text
+ 104              	.Letext0:
+ 105              		.file 2 "/usr/include/newlib/stdlib.h"
+ 106              		.file 3 "/usr/lib/gcc/arm-none-eabi/10.3.1/include/stdint.h"
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 random_shift_rows.c
+     /tmp/ccrEusX3.s:16     .text.Randomize_permuation:0000000000000000 $t
+     /tmp/ccrEusX3.s:24     .text.Randomize_permuation:0000000000000000 Randomize_permuation
+     /tmp/ccrEusX3.s:91     .text.Randomize_permuation:0000000000000034 $d
+     /tmp/ccrEusX3.s:100    .data:0000000000000000 shift_rows
+
+UNDEFINED SYMBOLS
+clock
+srand
+rand

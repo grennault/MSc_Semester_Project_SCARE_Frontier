@@ -1,0 +1,6 @@
+########
+CRYPTO_LIB = tiny-AES128-C
+SRC += aes.c aes-independant.c random_shift_rows.c
+CDEFS += -DTINYAES128C
+VPATH += :$(FIRMWAREPATH)/crypto6/$(CRYPTO_LIB)
+EXTRAINCDIRS += $(FIRMWAREPATH)/crypto6/$(CRYPTO_LIB)

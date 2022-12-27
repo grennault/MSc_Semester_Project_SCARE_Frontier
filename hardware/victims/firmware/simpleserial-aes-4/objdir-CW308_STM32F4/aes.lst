@@ -1,0 +1,1436 @@
+   1              		.cpu cortex-m4
+   2              		.eabi_attribute 20, 1
+   3              		.eabi_attribute 21, 1
+   4              		.eabi_attribute 23, 3
+   5              		.eabi_attribute 24, 1
+   6              		.eabi_attribute 25, 1
+   7              		.eabi_attribute 26, 1
+   8              		.eabi_attribute 30, 4
+   9              		.eabi_attribute 34, 1
+  10              		.eabi_attribute 18, 4
+  11              		.file	"aes.c"
+  12              		.text
+  13              	.Ltext0:
+  14              		.cfi_sections	.debug_frame
+  15              		.section	.text.KeyExpansion,"ax",%progbits
+  16              		.align	1
+  17              		.arch armv7e-m
+  18              		.syntax unified
+  19              		.thumb
+  20              		.thumb_func
+  21              		.fpu softvfp
+  23              	KeyExpansion:
+  24              	.LFB1:
+  25              		.file 1 ".././crypto4/tiny-AES128-C/aes.c"
+   1:.././crypto4/tiny-AES128-C/aes.c **** /* This AES-128 comes from https://github.com/kokke/tiny-AES128-C which is released into public dom
+   2:.././crypto4/tiny-AES128-C/aes.c **** 
+   3:.././crypto4/tiny-AES128-C/aes.c **** /*
+   4:.././crypto4/tiny-AES128-C/aes.c **** 
+   5:.././crypto4/tiny-AES128-C/aes.c **** This is an implementation of the AES128 algorithm, specifically ECB and CBC mode.
+   6:.././crypto4/tiny-AES128-C/aes.c **** 
+   7:.././crypto4/tiny-AES128-C/aes.c **** The implementation is verified against the test vectors in:
+   8:.././crypto4/tiny-AES128-C/aes.c ****   National Institute of Standards and Technology Special Publication 800-38A 2001 ED
+   9:.././crypto4/tiny-AES128-C/aes.c **** 
+  10:.././crypto4/tiny-AES128-C/aes.c **** ECB-AES128
+  11:.././crypto4/tiny-AES128-C/aes.c **** ----------
+  12:.././crypto4/tiny-AES128-C/aes.c **** 
+  13:.././crypto4/tiny-AES128-C/aes.c ****   plain-text:
+  14:.././crypto4/tiny-AES128-C/aes.c ****     6bc1bee22e409f96e93d7e117393172a
+  15:.././crypto4/tiny-AES128-C/aes.c ****     ae2d8a571e03ac9c9eb76fac45af8e51
+  16:.././crypto4/tiny-AES128-C/aes.c ****     30c81c46a35ce411e5fbc1191a0a52ef
+  17:.././crypto4/tiny-AES128-C/aes.c ****     f69f2445df4f9b17ad2b417be66c3710
+  18:.././crypto4/tiny-AES128-C/aes.c **** 
+  19:.././crypto4/tiny-AES128-C/aes.c ****   key:
+  20:.././crypto4/tiny-AES128-C/aes.c ****     2b7e151628aed2a6abf7158809cf4f3c
+  21:.././crypto4/tiny-AES128-C/aes.c **** 
+  22:.././crypto4/tiny-AES128-C/aes.c ****   resulting cipher
+  23:.././crypto4/tiny-AES128-C/aes.c ****     3ad77bb40d7a3660a89ecaf32466ef97
+  24:.././crypto4/tiny-AES128-C/aes.c ****     f5d3d58503b9699de785895a96fdbaaf
+  25:.././crypto4/tiny-AES128-C/aes.c ****     43b1cd7f598ece23881b00e3ed030688
+  26:.././crypto4/tiny-AES128-C/aes.c ****     7b0c785e27e8ad3f8223207104725dd4
+  27:.././crypto4/tiny-AES128-C/aes.c **** 
+  28:.././crypto4/tiny-AES128-C/aes.c **** 
+  29:.././crypto4/tiny-AES128-C/aes.c **** NOTE:   String length must be evenly divisible by 16byte (str_len % 16 == 0)
+  30:.././crypto4/tiny-AES128-C/aes.c ****         You should pad the end of the string with zeros if this is not the case.
+  31:.././crypto4/tiny-AES128-C/aes.c **** 
+  32:.././crypto4/tiny-AES128-C/aes.c **** */
+  33:.././crypto4/tiny-AES128-C/aes.c **** 
+  34:.././crypto4/tiny-AES128-C/aes.c **** /*****************************************************************************/
+  35:.././crypto4/tiny-AES128-C/aes.c **** /* Includes:                                                                 */
+  36:.././crypto4/tiny-AES128-C/aes.c **** /*****************************************************************************/
+  37:.././crypto4/tiny-AES128-C/aes.c **** #include <stdint.h>
+  38:.././crypto4/tiny-AES128-C/aes.c **** #include <string.h> // CBC mode, for memset
+  39:.././crypto4/tiny-AES128-C/aes.c **** #include "aes.h"
+  40:.././crypto4/tiny-AES128-C/aes.c **** #include "random_shift_rows.h"
+  41:.././crypto4/tiny-AES128-C/aes.c **** 
+  42:.././crypto4/tiny-AES128-C/aes.c **** /*****************************************************************************/
+  43:.././crypto4/tiny-AES128-C/aes.c **** /* Defines:                                                                  */
+  44:.././crypto4/tiny-AES128-C/aes.c **** /*****************************************************************************/
+  45:.././crypto4/tiny-AES128-C/aes.c **** // The number of columns comprising a state in AES. This is a constant in AES. Value=4
+  46:.././crypto4/tiny-AES128-C/aes.c **** #define Nb 4
+  47:.././crypto4/tiny-AES128-C/aes.c **** // The number of 32 bit words in a key.
+  48:.././crypto4/tiny-AES128-C/aes.c **** #define Nk 4
+  49:.././crypto4/tiny-AES128-C/aes.c **** // Key length in bytes [128 bit]
+  50:.././crypto4/tiny-AES128-C/aes.c **** #define KEYLEN 16
+  51:.././crypto4/tiny-AES128-C/aes.c **** // The number of rounds in AES Cipher.
+  52:.././crypto4/tiny-AES128-C/aes.c **** // #define Nr 10
+  53:.././crypto4/tiny-AES128-C/aes.c **** #define Nr 10
+  54:.././crypto4/tiny-AES128-C/aes.c **** 
+  55:.././crypto4/tiny-AES128-C/aes.c **** // jcallan@github points out that declaring Multiply as a function
+  56:.././crypto4/tiny-AES128-C/aes.c **** // reduces code size considerably with the Keil ARM compiler.
+  57:.././crypto4/tiny-AES128-C/aes.c **** // See this link for more information: https://github.com/kokke/tiny-AES128-C/pull/3
+  58:.././crypto4/tiny-AES128-C/aes.c **** #ifndef MULTIPLY_AS_A_FUNCTION
+  59:.././crypto4/tiny-AES128-C/aes.c **** #define MULTIPLY_AS_A_FUNCTION 0
+  60:.././crypto4/tiny-AES128-C/aes.c **** #endif
+  61:.././crypto4/tiny-AES128-C/aes.c **** 
+  62:.././crypto4/tiny-AES128-C/aes.c **** /*****************************************************************************/
+  63:.././crypto4/tiny-AES128-C/aes.c **** /* Private variables:                                                        */
+  64:.././crypto4/tiny-AES128-C/aes.c **** /*****************************************************************************/
+  65:.././crypto4/tiny-AES128-C/aes.c **** // state - array holding the intermediate results during decryption.
+  66:.././crypto4/tiny-AES128-C/aes.c **** typedef uint8_t state_t[4][4];
+  67:.././crypto4/tiny-AES128-C/aes.c **** static state_t *state;
+  68:.././crypto4/tiny-AES128-C/aes.c **** static state_t *state_copy;
+  69:.././crypto4/tiny-AES128-C/aes.c **** 
+  70:.././crypto4/tiny-AES128-C/aes.c **** // The array that stores the round keys.
+  71:.././crypto4/tiny-AES128-C/aes.c **** static uint8_t RoundKey[176];
+  72:.././crypto4/tiny-AES128-C/aes.c **** 
+  73:.././crypto4/tiny-AES128-C/aes.c **** static uint8_t input_save[16];
+  74:.././crypto4/tiny-AES128-C/aes.c **** 
+  75:.././crypto4/tiny-AES128-C/aes.c **** // The Key input to the AES Program
+  76:.././crypto4/tiny-AES128-C/aes.c **** static uint8_t *Key;
+  77:.././crypto4/tiny-AES128-C/aes.c **** 
+  78:.././crypto4/tiny-AES128-C/aes.c **** // The lookup-tables are marked const so they can be placed in read-only storage instead of RAM
+  79:.././crypto4/tiny-AES128-C/aes.c **** // The numbers below can be computed dynamically trading ROM for RAM -
+  80:.././crypto4/tiny-AES128-C/aes.c **** // This can be useful in (embedded) bootloader applications, where ROM is often limited.
+  81:.././crypto4/tiny-AES128-C/aes.c **** AES_CONST_VAR uint8_t sbox[256] = {
+  82:.././crypto4/tiny-AES128-C/aes.c ****     // 0     1    2      3     4    5     6     7      8    9     A      B    C     D     E     F
+  83:.././crypto4/tiny-AES128-C/aes.c ****     0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76,
+  84:.././crypto4/tiny-AES128-C/aes.c ****     0xca, 0x82, 0xc9, 0x7d, 0xfa, 0x59, 0x47, 0xf0, 0xad, 0xd4, 0xa2, 0xaf, 0x9c, 0xa4, 0x72, 0xc0,
+  85:.././crypto4/tiny-AES128-C/aes.c ****     0xb7, 0xfd, 0x93, 0x26, 0x36, 0x3f, 0xf7, 0xcc, 0x34, 0xa5, 0xe5, 0xf1, 0x71, 0xd8, 0x31, 0x15,
+  86:.././crypto4/tiny-AES128-C/aes.c ****     0x04, 0xc7, 0x23, 0xc3, 0x18, 0x96, 0x05, 0x9a, 0x07, 0x12, 0x80, 0xe2, 0xeb, 0x27, 0xb2, 0x75,
+  87:.././crypto4/tiny-AES128-C/aes.c ****     0x09, 0x83, 0x2c, 0x1a, 0x1b, 0x6e, 0x5a, 0xa0, 0x52, 0x3b, 0xd6, 0xb3, 0x29, 0xe3, 0x2f, 0x84,
+  88:.././crypto4/tiny-AES128-C/aes.c ****     0x53, 0xd1, 0x00, 0xed, 0x20, 0xfc, 0xb1, 0x5b, 0x6a, 0xcb, 0xbe, 0x39, 0x4a, 0x4c, 0x58, 0xcf,
+  89:.././crypto4/tiny-AES128-C/aes.c ****     0xd0, 0xef, 0xaa, 0xfb, 0x43, 0x4d, 0x33, 0x85, 0x45, 0xf9, 0x02, 0x7f, 0x50, 0x3c, 0x9f, 0xa8,
+  90:.././crypto4/tiny-AES128-C/aes.c ****     0x51, 0xa3, 0x40, 0x8f, 0x92, 0x9d, 0x38, 0xf5, 0xbc, 0xb6, 0xda, 0x21, 0x10, 0xff, 0xf3, 0xd2,
+  91:.././crypto4/tiny-AES128-C/aes.c ****     0xcd, 0x0c, 0x13, 0xec, 0x5f, 0x97, 0x44, 0x17, 0xc4, 0xa7, 0x7e, 0x3d, 0x64, 0x5d, 0x19, 0x73,
+  92:.././crypto4/tiny-AES128-C/aes.c ****     0x60, 0x81, 0x4f, 0xdc, 0x22, 0x2a, 0x90, 0x88, 0x46, 0xee, 0xb8, 0x14, 0xde, 0x5e, 0x0b, 0xdb,
+  93:.././crypto4/tiny-AES128-C/aes.c ****     0xe0, 0x32, 0x3a, 0x0a, 0x49, 0x06, 0x24, 0x5c, 0xc2, 0xd3, 0xac, 0x62, 0x91, 0x95, 0xe4, 0x79,
+  94:.././crypto4/tiny-AES128-C/aes.c ****     0xe7, 0xc8, 0x37, 0x6d, 0x8d, 0xd5, 0x4e, 0xa9, 0x6c, 0x56, 0xf4, 0xea, 0x65, 0x7a, 0xae, 0x08,
+  95:.././crypto4/tiny-AES128-C/aes.c ****     0xba, 0x78, 0x25, 0x2e, 0x1c, 0xa6, 0xb4, 0xc6, 0xe8, 0xdd, 0x74, 0x1f, 0x4b, 0xbd, 0x8b, 0x8a,
+  96:.././crypto4/tiny-AES128-C/aes.c ****     0x70, 0x3e, 0xb5, 0x66, 0x48, 0x03, 0xf6, 0x0e, 0x61, 0x35, 0x57, 0xb9, 0x86, 0xc1, 0x1d, 0x9e,
+  97:.././crypto4/tiny-AES128-C/aes.c ****     0xe1, 0xf8, 0x98, 0x11, 0x69, 0xd9, 0x8e, 0x94, 0x9b, 0x1e, 0x87, 0xe9, 0xce, 0x55, 0x28, 0xdf,
+  98:.././crypto4/tiny-AES128-C/aes.c ****     0x8c, 0xa1, 0x89, 0x0d, 0xbf, 0xe6, 0x42, 0x68, 0x41, 0x99, 0x2d, 0x0f, 0xb0, 0x54, 0xbb, 0x16}
+  99:.././crypto4/tiny-AES128-C/aes.c **** 
+ 100:.././crypto4/tiny-AES128-C/aes.c **** AES_CONST_VAR uint8_t rsbox[256] =
+ 101:.././crypto4/tiny-AES128-C/aes.c ****     {0x52, 0x09, 0x6a, 0xd5, 0x30, 0x36, 0xa5, 0x38, 0xbf, 0x40, 0xa3, 0x9e, 0x81, 0xf3, 0xd7, 0xfb
+ 102:.././crypto4/tiny-AES128-C/aes.c ****      0x7c, 0xe3, 0x39, 0x82, 0x9b, 0x2f, 0xff, 0x87, 0x34, 0x8e, 0x43, 0x44, 0xc4, 0xde, 0xe9, 0xcb
+ 103:.././crypto4/tiny-AES128-C/aes.c ****      0x54, 0x7b, 0x94, 0x32, 0xa6, 0xc2, 0x23, 0x3d, 0xee, 0x4c, 0x95, 0x0b, 0x42, 0xfa, 0xc3, 0x4e
+ 104:.././crypto4/tiny-AES128-C/aes.c ****      0x08, 0x2e, 0xa1, 0x66, 0x28, 0xd9, 0x24, 0xb2, 0x76, 0x5b, 0xa2, 0x49, 0x6d, 0x8b, 0xd1, 0x25
+ 105:.././crypto4/tiny-AES128-C/aes.c ****      0x72, 0xf8, 0xf6, 0x64, 0x86, 0x68, 0x98, 0x16, 0xd4, 0xa4, 0x5c, 0xcc, 0x5d, 0x65, 0xb6, 0x92
+ 106:.././crypto4/tiny-AES128-C/aes.c ****      0x6c, 0x70, 0x48, 0x50, 0xfd, 0xed, 0xb9, 0xda, 0x5e, 0x15, 0x46, 0x57, 0xa7, 0x8d, 0x9d, 0x84
+ 107:.././crypto4/tiny-AES128-C/aes.c ****      0x90, 0xd8, 0xab, 0x00, 0x8c, 0xbc, 0xd3, 0x0a, 0xf7, 0xe4, 0x58, 0x05, 0xb8, 0xb3, 0x45, 0x06
+ 108:.././crypto4/tiny-AES128-C/aes.c ****      0xd0, 0x2c, 0x1e, 0x8f, 0xca, 0x3f, 0x0f, 0x02, 0xc1, 0xaf, 0xbd, 0x03, 0x01, 0x13, 0x8a, 0x6b
+ 109:.././crypto4/tiny-AES128-C/aes.c ****      0x3a, 0x91, 0x11, 0x41, 0x4f, 0x67, 0xdc, 0xea, 0x97, 0xf2, 0xcf, 0xce, 0xf0, 0xb4, 0xe6, 0x73
+ 110:.././crypto4/tiny-AES128-C/aes.c ****      0x96, 0xac, 0x74, 0x22, 0xe7, 0xad, 0x35, 0x85, 0xe2, 0xf9, 0x37, 0xe8, 0x1c, 0x75, 0xdf, 0x6e
+ 111:.././crypto4/tiny-AES128-C/aes.c ****      0x47, 0xf1, 0x1a, 0x71, 0x1d, 0x29, 0xc5, 0x89, 0x6f, 0xb7, 0x62, 0x0e, 0xaa, 0x18, 0xbe, 0x1b
+ 112:.././crypto4/tiny-AES128-C/aes.c ****      0xfc, 0x56, 0x3e, 0x4b, 0xc6, 0xd2, 0x79, 0x20, 0x9a, 0xdb, 0xc0, 0xfe, 0x78, 0xcd, 0x5a, 0xf4
+ 113:.././crypto4/tiny-AES128-C/aes.c ****      0x1f, 0xdd, 0xa8, 0x33, 0x88, 0x07, 0xc7, 0x31, 0xb1, 0x12, 0x10, 0x59, 0x27, 0x80, 0xec, 0x5f
+ 114:.././crypto4/tiny-AES128-C/aes.c ****      0x60, 0x51, 0x7f, 0xa9, 0x19, 0xb5, 0x4a, 0x0d, 0x2d, 0xe5, 0x7a, 0x9f, 0x93, 0xc9, 0x9c, 0xef
+ 115:.././crypto4/tiny-AES128-C/aes.c ****      0xa0, 0xe0, 0x3b, 0x4d, 0xae, 0x2a, 0xf5, 0xb0, 0xc8, 0xeb, 0xbb, 0x3c, 0x83, 0x53, 0x99, 0x61
+ 116:.././crypto4/tiny-AES128-C/aes.c ****      0x17, 0x2b, 0x04, 0x7e, 0xba, 0x77, 0xd6, 0x26, 0xe1, 0x69, 0x14, 0x63, 0x55, 0x21, 0x0c, 0x7d
+ 117:.././crypto4/tiny-AES128-C/aes.c **** 
+ 118:.././crypto4/tiny-AES128-C/aes.c **** // The round constant word array, Rcon[i], contains the values given by
+ 119:.././crypto4/tiny-AES128-C/aes.c **** // x to th e power (i-1) being powers of x (x is denoted as {02}) in the field GF(2^8)
+ 120:.././crypto4/tiny-AES128-C/aes.c **** // Note that i starts at 1, not 0).
+ 121:.././crypto4/tiny-AES128-C/aes.c **** AES_CONST_VAR uint8_t Rcon[11] = {
+ 122:.././crypto4/tiny-AES128-C/aes.c ****     0x8d, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36};
+ 123:.././crypto4/tiny-AES128-C/aes.c **** 
+ 124:.././crypto4/tiny-AES128-C/aes.c **** /*****************************************************************************/
+ 125:.././crypto4/tiny-AES128-C/aes.c **** /* Private functions:                                                        */
+ 126:.././crypto4/tiny-AES128-C/aes.c **** /*****************************************************************************/
+ 127:.././crypto4/tiny-AES128-C/aes.c **** static uint8_t getSBoxValue(uint8_t num)
+ 128:.././crypto4/tiny-AES128-C/aes.c **** {
+ 129:.././crypto4/tiny-AES128-C/aes.c ****   return sbox[num];
+ 130:.././crypto4/tiny-AES128-C/aes.c **** }
+ 131:.././crypto4/tiny-AES128-C/aes.c **** 
+ 132:.././crypto4/tiny-AES128-C/aes.c **** // This function produces Nb(Nr+1) round keys. The round keys are used in each round to decrypt the
+ 133:.././crypto4/tiny-AES128-C/aes.c **** static void KeyExpansion(void)
+ 134:.././crypto4/tiny-AES128-C/aes.c **** {
+  26              		.loc 1 134 1 view -0
+  27              		.cfi_startproc
+  28              		@ args = 0, pretend = 0, frame = 8
+  29              		@ frame_needed = 0, uses_anonymous_args = 0
+ 135:.././crypto4/tiny-AES128-C/aes.c ****   uint32_t i, j, k;
+  30              		.loc 1 135 3 view .LVU1
+ 136:.././crypto4/tiny-AES128-C/aes.c ****   uint8_t tempa[4]; // Used for the column/row operations
+  31              		.loc 1 136 3 view .LVU2
+ 137:.././crypto4/tiny-AES128-C/aes.c **** 
+ 138:.././crypto4/tiny-AES128-C/aes.c ****   // The first round key is the key itself.
+ 139:.././crypto4/tiny-AES128-C/aes.c ****   for (i = 0; i < Nk; ++i)
+  32              		.loc 1 139 3 view .LVU3
+  33              	.LVL0:
+  34              		.loc 1 139 15 view .LVU4
+ 134:.././crypto4/tiny-AES128-C/aes.c ****   uint32_t i, j, k;
+  35              		.loc 1 134 1 is_stmt 0 view .LVU5
+  36 0000 37B5     		push	{r0, r1, r2, r4, r5, lr}
+  37              	.LCFI0:
+  38              		.cfi_def_cfa_offset 24
+  39              		.cfi_offset 4, -12
+  40              		.cfi_offset 5, -8
+  41              		.cfi_offset 14, -4
+  42 0002 274A     		ldr	r2, .L9
+  43 0004 52F8043B 		ldr	r3, [r2], #4
+  44 0008 03F11001 		add	r1, r3, #16
+  45              	.LVL1:
+  46              	.L2:
+ 140:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 141:.././crypto4/tiny-AES128-C/aes.c ****     RoundKey[(i * 4) + 0] = Key[(i * 4) + 0];
+  47              		.loc 1 141 5 is_stmt 1 discriminator 3 view .LVU6
+  48              		.loc 1 141 32 is_stmt 0 discriminator 3 view .LVU7
+  49 000c 1878     		ldrb	r0, [r3]	@ zero_extendqisi2
+  50              		.loc 1 141 27 discriminator 3 view .LVU8
+  51 000e 1070     		strb	r0, [r2]
+ 142:.././crypto4/tiny-AES128-C/aes.c ****     RoundKey[(i * 4) + 1] = Key[(i * 4) + 1];
+  52              		.loc 1 142 5 is_stmt 1 discriminator 3 view .LVU9
+  53              		.loc 1 142 32 is_stmt 0 discriminator 3 view .LVU10
+  54 0010 5878     		ldrb	r0, [r3, #1]	@ zero_extendqisi2
+  55              		.loc 1 142 27 discriminator 3 view .LVU11
+  56 0012 5070     		strb	r0, [r2, #1]
+ 143:.././crypto4/tiny-AES128-C/aes.c ****     RoundKey[(i * 4) + 2] = Key[(i * 4) + 2];
+  57              		.loc 1 143 5 is_stmt 1 discriminator 3 view .LVU12
+  58              		.loc 1 143 32 is_stmt 0 discriminator 3 view .LVU13
+  59 0014 9878     		ldrb	r0, [r3, #2]	@ zero_extendqisi2
+  60              		.loc 1 143 27 discriminator 3 view .LVU14
+  61 0016 9070     		strb	r0, [r2, #2]
+ 144:.././crypto4/tiny-AES128-C/aes.c ****     RoundKey[(i * 4) + 3] = Key[(i * 4) + 3];
+  62              		.loc 1 144 5 is_stmt 1 discriminator 3 view .LVU15
+  63              		.loc 1 144 32 is_stmt 0 discriminator 3 view .LVU16
+  64 0018 D878     		ldrb	r0, [r3, #3]	@ zero_extendqisi2
+  65              		.loc 1 144 27 discriminator 3 view .LVU17
+  66 001a D070     		strb	r0, [r2, #3]
+ 139:.././crypto4/tiny-AES128-C/aes.c ****   {
+  67              		.loc 1 139 23 is_stmt 1 discriminator 3 view .LVU18
+ 139:.././crypto4/tiny-AES128-C/aes.c ****   {
+  68              		.loc 1 139 15 discriminator 3 view .LVU19
+ 139:.././crypto4/tiny-AES128-C/aes.c ****   {
+  69              		.loc 1 139 3 is_stmt 0 discriminator 3 view .LVU20
+  70 001c 0433     		adds	r3, r3, #4
+  71 001e 8B42     		cmp	r3, r1
+  72 0020 02F10402 		add	r2, r2, #4
+  73 0024 F2D1     		bne	.L2
+  74 0026 1F4B     		ldr	r3, .L9+4
+  75              	.LBB12:
+  76              	.LBB13:
+ 129:.././crypto4/tiny-AES128-C/aes.c **** }
+  77              		.loc 1 129 14 view .LVU21
+  78 0028 1F48     		ldr	r0, .L9+8
+  79              	.LBE13:
+  80              	.LBE12:
+ 139:.././crypto4/tiny-AES128-C/aes.c ****   {
+  81              		.loc 1 139 3 view .LVU22
+  82 002a 0421     		movs	r1, #4
+  83              	.L3:
+  84              	.LVL2:
+ 145:.././crypto4/tiny-AES128-C/aes.c ****   }
+ 146:.././crypto4/tiny-AES128-C/aes.c **** 
+ 147:.././crypto4/tiny-AES128-C/aes.c ****   // All other round keys are found from the previous round keys.
+ 148:.././crypto4/tiny-AES128-C/aes.c ****   for (; (i < (Nb * (Nr + 1))); ++i)
+ 149:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 150:.././crypto4/tiny-AES128-C/aes.c ****     for (j = 0; j < 4; ++j)
+  85              		.loc 1 150 17 is_stmt 1 view .LVU23
+  86 002c 1A68     		ldr	r2, [r3]	@ unaligned
+ 151:.././crypto4/tiny-AES128-C/aes.c ****     {
+ 152:.././crypto4/tiny-AES128-C/aes.c ****       tempa[j] = RoundKey[(i - 1) * 4 + j];
+  87              		.loc 1 152 16 is_stmt 0 view .LVU24
+  88 002e 0192     		str	r2, [sp, #4]
+  89              	.LVL3:
+ 153:.././crypto4/tiny-AES128-C/aes.c ****     }
+ 154:.././crypto4/tiny-AES128-C/aes.c ****     if (i % Nk == 0)
+  90              		.loc 1 154 5 is_stmt 1 view .LVU25
+  91              		.loc 1 154 8 is_stmt 0 view .LVU26
+  92 0030 8C07     		lsls	r4, r1, #30
+  93 0032 16D1     		bne	.L6
+ 155:.././crypto4/tiny-AES128-C/aes.c ****     {
+ 156:.././crypto4/tiny-AES128-C/aes.c ****       // This function rotates the 4 bytes in a word to the left once.
+ 157:.././crypto4/tiny-AES128-C/aes.c ****       // [a0,a1,a2,a3] becomes [a1,a2,a3,a0]
+ 158:.././crypto4/tiny-AES128-C/aes.c **** 
+ 159:.././crypto4/tiny-AES128-C/aes.c ****       // Function RotWord()
+ 160:.././crypto4/tiny-AES128-C/aes.c ****       {
+ 161:.././crypto4/tiny-AES128-C/aes.c ****         k = tempa[0];
+  94              		.loc 1 161 9 is_stmt 1 view .LVU27
+  95              	.LVL4:
+ 162:.././crypto4/tiny-AES128-C/aes.c ****         tempa[0] = tempa[1];
+  96              		.loc 1 162 9 view .LVU28
+ 163:.././crypto4/tiny-AES128-C/aes.c ****         tempa[1] = tempa[2];
+  97              		.loc 1 163 9 view .LVU29
+ 164:.././crypto4/tiny-AES128-C/aes.c ****         tempa[2] = tempa[3];
+  98              		.loc 1 164 9 view .LVU30
+ 165:.././crypto4/tiny-AES128-C/aes.c ****         tempa[3] = k;
+  99              		.loc 1 165 9 view .LVU31
+ 166:.././crypto4/tiny-AES128-C/aes.c ****       }
+ 167:.././crypto4/tiny-AES128-C/aes.c **** 
+ 168:.././crypto4/tiny-AES128-C/aes.c ****       // SubWord() is a function that takes a four-byte input word and
+ 169:.././crypto4/tiny-AES128-C/aes.c ****       // applies the S-box to each of the four bytes to produce an output word.
+ 170:.././crypto4/tiny-AES128-C/aes.c **** 
+ 171:.././crypto4/tiny-AES128-C/aes.c ****       // Function Subword()
+ 172:.././crypto4/tiny-AES128-C/aes.c ****       {
+ 173:.././crypto4/tiny-AES128-C/aes.c ****         tempa[0] = getSBoxValue(tempa[0]);
+ 100              		.loc 1 173 9 view .LVU32
+ 101              	.LBB17:
+ 102              	.LBI12:
+ 127:.././crypto4/tiny-AES128-C/aes.c **** {
+ 103              		.loc 1 127 16 view .LVU33
+ 104              	.LBB14:
+ 129:.././crypto4/tiny-AES128-C/aes.c **** }
+ 105              		.loc 1 129 3 view .LVU34
+ 106              	.LBE14:
+ 107              	.LBE17:
+ 108              	.LBB18:
+ 109              	.LBB19:
+ 129:.././crypto4/tiny-AES128-C/aes.c **** }
+ 110              		.loc 1 129 14 is_stmt 0 view .LVU35
+ 111 0034 C2F30745 		ubfx	r5, r2, #16, #8
+ 112              	.LBE19:
+ 113              	.LBE18:
+ 114              	.LBB21:
+ 115              	.LBB15:
+ 116 0038 C2F30724 		ubfx	r4, r2, #8, #8
+ 117              	.LBE15:
+ 118              	.LBE21:
+ 174:.././crypto4/tiny-AES128-C/aes.c ****         tempa[1] = getSBoxValue(tempa[1]);
+ 119              		.loc 1 174 18 view .LVU36
+ 120 003c 455D     		ldrb	r5, [r0, r5]	@ zero_extendqisi2
+ 121 003e 8DF80550 		strb	r5, [sp, #5]
+ 122              	.LVL5:
+ 123              	.LBB22:
+ 124              	.LBB23:
+ 129:.././crypto4/tiny-AES128-C/aes.c **** }
+ 125              		.loc 1 129 14 view .LVU37
+ 126 0042 150E     		lsrs	r5, r2, #24
+ 127              	.LBE23:
+ 128              	.LBE22:
+ 129              	.LBB25:
+ 130              	.LBB26:
+ 131 0044 D2B2     		uxtb	r2, r2
+ 132              	.LBE26:
+ 133              	.LBE25:
+ 134              	.LBB28:
+ 135              	.LBB16:
+ 136 0046 045D     		ldrb	r4, [r0, r4]	@ zero_extendqisi2
+ 129:.././crypto4/tiny-AES128-C/aes.c **** }
+ 137              		.loc 1 129 14 view .LVU38
+ 138              	.LBE16:
+ 139              	.LBE28:
+ 140              		.loc 1 174 9 is_stmt 1 view .LVU39
+ 141              	.LVL6:
+ 142              	.LBB29:
+ 143              	.LBI18:
+ 127:.././crypto4/tiny-AES128-C/aes.c **** {
+ 144              		.loc 1 127 16 view .LVU40
+ 145              	.LBB20:
+ 129:.././crypto4/tiny-AES128-C/aes.c **** }
+ 146              		.loc 1 129 3 view .LVU41
+ 129:.././crypto4/tiny-AES128-C/aes.c **** }
+ 147              		.loc 1 129 3 is_stmt 0 view .LVU42
+ 148              	.LBE20:
+ 149              	.LBE29:
+ 175:.././crypto4/tiny-AES128-C/aes.c ****         tempa[2] = getSBoxValue(tempa[2]);
+ 150              		.loc 1 175 9 is_stmt 1 view .LVU43
+ 151              	.LBB30:
+ 152              	.LBI22:
+ 127:.././crypto4/tiny-AES128-C/aes.c **** {
+ 153              		.loc 1 127 16 view .LVU44
+ 154              	.LBB24:
+ 129:.././crypto4/tiny-AES128-C/aes.c **** }
+ 155              		.loc 1 129 3 view .LVU45
+ 129:.././crypto4/tiny-AES128-C/aes.c **** }
+ 156              		.loc 1 129 3 is_stmt 0 view .LVU46
+ 157              	.LBE24:
+ 158              	.LBE30:
+ 176:.././crypto4/tiny-AES128-C/aes.c ****         tempa[3] = getSBoxValue(tempa[3]);
+ 159              		.loc 1 176 18 view .LVU47
+ 160 0048 825C     		ldrb	r2, [r0, r2]	@ zero_extendqisi2
+ 161 004a 8DF80720 		strb	r2, [sp, #7]
+ 177:.././crypto4/tiny-AES128-C/aes.c ****       }
+ 178:.././crypto4/tiny-AES128-C/aes.c **** 
+ 179:.././crypto4/tiny-AES128-C/aes.c ****       tempa[0] = tempa[0] ^ Rcon[i / Nk];
+ 162              		.loc 1 179 33 view .LVU48
+ 163 004e 00EB9102 		add	r2, r0, r1, lsr #2
+ 175:.././crypto4/tiny-AES128-C/aes.c ****         tempa[3] = getSBoxValue(tempa[3]);
+ 164              		.loc 1 175 18 view .LVU49
+ 165 0052 455D     		ldrb	r5, [r0, r5]	@ zero_extendqisi2
+ 166              		.loc 1 179 16 view .LVU50
+ 167 0054 92F80021 		ldrb	r2, [r2, #256]	@ zero_extendqisi2
+ 175:.././crypto4/tiny-AES128-C/aes.c ****         tempa[3] = getSBoxValue(tempa[3]);
+ 168              		.loc 1 175 18 view .LVU51
+ 169 0058 8DF80650 		strb	r5, [sp, #6]
+ 176:.././crypto4/tiny-AES128-C/aes.c ****         tempa[3] = getSBoxValue(tempa[3]);
+ 170              		.loc 1 176 9 is_stmt 1 view .LVU52
+ 171              	.LVL7:
+ 172              	.LBB31:
+ 173              	.LBI25:
+ 127:.././crypto4/tiny-AES128-C/aes.c **** {
+ 174              		.loc 1 127 16 view .LVU53
+ 175              	.LBB27:
+ 129:.././crypto4/tiny-AES128-C/aes.c **** }
+ 176              		.loc 1 129 3 view .LVU54
+ 129:.././crypto4/tiny-AES128-C/aes.c **** }
+ 177              		.loc 1 129 3 is_stmt 0 view .LVU55
+ 178              	.LBE27:
+ 179              	.LBE31:
+ 180              		.loc 1 179 7 is_stmt 1 view .LVU56
+ 181              		.loc 1 179 16 is_stmt 0 view .LVU57
+ 182 005c 6240     		eors	r2, r2, r4
+ 183 005e 8DF80420 		strb	r2, [sp, #4]
+ 184              	.LVL8:
+ 185              	.L6:
+ 180:.././crypto4/tiny-AES128-C/aes.c ****     }
+ 181:.././crypto4/tiny-AES128-C/aes.c ****     else if (Nk > 6 && i % Nk == 4)
+ 182:.././crypto4/tiny-AES128-C/aes.c ****     {
+ 183:.././crypto4/tiny-AES128-C/aes.c ****       // Function Subword()
+ 184:.././crypto4/tiny-AES128-C/aes.c ****       {
+ 185:.././crypto4/tiny-AES128-C/aes.c ****         tempa[0] = getSBoxValue(tempa[0]);
+ 186:.././crypto4/tiny-AES128-C/aes.c ****         tempa[1] = getSBoxValue(tempa[1]);
+ 187:.././crypto4/tiny-AES128-C/aes.c ****         tempa[2] = getSBoxValue(tempa[2]);
+ 188:.././crypto4/tiny-AES128-C/aes.c ****         tempa[3] = getSBoxValue(tempa[3]);
+ 189:.././crypto4/tiny-AES128-C/aes.c ****       }
+ 190:.././crypto4/tiny-AES128-C/aes.c ****     }
+ 191:.././crypto4/tiny-AES128-C/aes.c ****     RoundKey[i * 4 + 0] = RoundKey[(i - Nk) * 4 + 0] ^ tempa[0];
+ 186              		.loc 1 191 5 is_stmt 1 view .LVU58
+ 187              		.loc 1 191 25 is_stmt 0 view .LVU59
+ 188 0062 13F80C2C 		ldrb	r2, [r3, #-12]	@ zero_extendqisi2
+ 189 0066 9DF80440 		ldrb	r4, [sp, #4]	@ zero_extendqisi2
+ 190 006a 6240     		eors	r2, r2, r4
+ 191 006c 1A71     		strb	r2, [r3, #4]
+ 192:.././crypto4/tiny-AES128-C/aes.c ****     RoundKey[i * 4 + 1] = RoundKey[(i - Nk) * 4 + 1] ^ tempa[1];
+ 192              		.loc 1 192 5 is_stmt 1 view .LVU60
+ 193              		.loc 1 192 25 is_stmt 0 view .LVU61
+ 194 006e 9DF80540 		ldrb	r4, [sp, #5]	@ zero_extendqisi2
+ 195 0072 13F80B2C 		ldrb	r2, [r3, #-11]	@ zero_extendqisi2
+ 196 0076 6240     		eors	r2, r2, r4
+ 197 0078 5A71     		strb	r2, [r3, #5]
+ 193:.././crypto4/tiny-AES128-C/aes.c ****     RoundKey[i * 4 + 2] = RoundKey[(i - Nk) * 4 + 2] ^ tempa[2];
+ 198              		.loc 1 193 5 is_stmt 1 view .LVU62
+ 199              		.loc 1 193 25 is_stmt 0 view .LVU63
+ 200 007a 9DF80640 		ldrb	r4, [sp, #6]	@ zero_extendqisi2
+ 201 007e 13F80A2C 		ldrb	r2, [r3, #-10]	@ zero_extendqisi2
+ 202 0082 6240     		eors	r2, r2, r4
+ 203 0084 9A71     		strb	r2, [r3, #6]
+ 194:.././crypto4/tiny-AES128-C/aes.c ****     RoundKey[i * 4 + 3] = RoundKey[(i - Nk) * 4 + 3] ^ tempa[3];
+ 204              		.loc 1 194 5 is_stmt 1 view .LVU64
+ 205              		.loc 1 194 25 is_stmt 0 view .LVU65
+ 206 0086 9DF80740 		ldrb	r4, [sp, #7]	@ zero_extendqisi2
+ 207 008a 13F8092C 		ldrb	r2, [r3, #-9]	@ zero_extendqisi2
+ 148:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 208              		.loc 1 148 33 view .LVU66
+ 209 008e 0131     		adds	r1, r1, #1
+ 210              	.LVL9:
+ 211              		.loc 1 194 25 view .LVU67
+ 212 0090 6240     		eors	r2, r2, r4
+ 148:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 213              		.loc 1 148 3 view .LVU68
+ 214 0092 2C29     		cmp	r1, #44
+ 215              		.loc 1 194 25 view .LVU69
+ 216 0094 DA71     		strb	r2, [r3, #7]
+ 148:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 217              		.loc 1 148 33 is_stmt 1 view .LVU70
+ 218              	.LVL10:
+ 148:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 219              		.loc 1 148 10 view .LVU71
+ 148:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 220              		.loc 1 148 3 is_stmt 0 view .LVU72
+ 221 0096 03F10403 		add	r3, r3, #4
+ 222 009a C7D1     		bne	.L3
+ 195:.././crypto4/tiny-AES128-C/aes.c ****   }
+ 196:.././crypto4/tiny-AES128-C/aes.c **** }
+ 223              		.loc 1 196 1 view .LVU73
+ 224 009c 03B0     		add	sp, sp, #12
+ 225              	.LCFI1:
+ 226              		.cfi_def_cfa_offset 12
+ 227              		@ sp needed
+ 228 009e 30BD     		pop	{r4, r5, pc}
+ 229              	.L10:
+ 230              		.align	2
+ 231              	.L9:
+ 232 00a0 00000000 		.word	.LANCHOR0
+ 233 00a4 10000000 		.word	.LANCHOR0+16
+ 234 00a8 00000000 		.word	.LANCHOR1
+ 235              		.cfi_endproc
+ 236              	.LFE1:
+ 238              		.section	.text.AddRoundKey,"ax",%progbits
+ 239              		.align	1
+ 240              		.syntax unified
+ 241              		.thumb
+ 242              		.thumb_func
+ 243              		.fpu softvfp
+ 245              	AddRoundKey:
+ 246              	.LVL11:
+ 247              	.LFB2:
+ 197:.././crypto4/tiny-AES128-C/aes.c **** 
+ 198:.././crypto4/tiny-AES128-C/aes.c **** // This function adds the round key to state.
+ 199:.././crypto4/tiny-AES128-C/aes.c **** // The round key is added to the state by an XOR function.
+ 200:.././crypto4/tiny-AES128-C/aes.c **** static void AddRoundKey(uint8_t round)
+ 201:.././crypto4/tiny-AES128-C/aes.c **** {
+ 248              		.loc 1 201 1 is_stmt 1 view -0
+ 249              		.cfi_startproc
+ 250              		@ args = 0, pretend = 0, frame = 0
+ 251              		@ frame_needed = 0, uses_anonymous_args = 0
+ 202:.././crypto4/tiny-AES128-C/aes.c ****   uint8_t i, j;
+ 252              		.loc 1 202 3 view .LVU75
+ 203:.././crypto4/tiny-AES128-C/aes.c ****   for (i = 0; i < 4; ++i)
+ 253              		.loc 1 203 3 view .LVU76
+ 254              		.loc 1 203 15 view .LVU77
+ 204:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 205:.././crypto4/tiny-AES128-C/aes.c ****     for (j = 0; j < 4; ++j)
+ 206:.././crypto4/tiny-AES128-C/aes.c ****     {
+ 207:.././crypto4/tiny-AES128-C/aes.c ****       (*state)[i][j] ^= RoundKey[round * Nb * 4 + i * Nb + j];
+ 255              		.loc 1 207 22 is_stmt 0 view .LVU78
+ 256 0000 0B4B     		ldr	r3, .L16
+ 201:.././crypto4/tiny-AES128-C/aes.c ****   uint8_t i, j;
+ 257              		.loc 1 201 1 view .LVU79
+ 258 0002 F0B5     		push	{r4, r5, r6, r7, lr}
+ 259              	.LCFI2:
+ 260              		.cfi_def_cfa_offset 20
+ 261              		.cfi_offset 4, -20
+ 262              		.cfi_offset 5, -16
+ 263              		.cfi_offset 6, -12
+ 264              		.cfi_offset 7, -8
+ 265              		.cfi_offset 14, -4
+ 266 0004 D3F8B440 		ldr	r4, [r3, #180]
+ 267 0008 0001     		lsls	r0, r0, #4
+ 268              	.LVL12:
+ 201:.././crypto4/tiny-AES128-C/aes.c ****   uint8_t i, j;
+ 269              		.loc 1 201 1 view .LVU80
+ 270 000a 211D     		adds	r1, r4, #4
+ 271 000c 1A1D     		adds	r2, r3, #4
+ 272 000e 1434     		adds	r4, r4, #20
+ 273              	.LVL13:
+ 274              	.L12:
+ 205:.././crypto4/tiny-AES128-C/aes.c ****     {
+ 275              		.loc 1 205 17 is_stmt 1 view .LVU81
+ 276 0010 0B1F     		subs	r3, r1, #4
+ 277 0012 1618     		adds	r6, r2, r0
+ 278              	.LVL14:
+ 279              	.L13:
+ 280              		.loc 1 207 7 discriminator 3 view .LVU82
+ 281              		.loc 1 207 22 is_stmt 0 discriminator 3 view .LVU83
+ 282 0014 1D78     		ldrb	r5, [r3]	@ zero_extendqisi2
+ 283              		.loc 1 207 33 discriminator 3 view .LVU84
+ 284 0016 16F8017B 		ldrb	r7, [r6], #1	@ zero_extendqisi2
+ 285              		.loc 1 207 22 discriminator 3 view .LVU85
+ 286 001a 7D40     		eors	r5, r5, r7
+ 287 001c 03F8015B 		strb	r5, [r3], #1
+ 205:.././crypto4/tiny-AES128-C/aes.c ****     {
+ 288              		.loc 1 205 24 is_stmt 1 discriminator 3 view .LVU86
+ 205:.././crypto4/tiny-AES128-C/aes.c ****     {
+ 289              		.loc 1 205 17 discriminator 3 view .LVU87
+ 205:.././crypto4/tiny-AES128-C/aes.c ****     {
+ 290              		.loc 1 205 5 is_stmt 0 discriminator 3 view .LVU88
+ 291 0020 8B42     		cmp	r3, r1
+ 292 0022 F7D1     		bne	.L13
+ 203:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 293              		.loc 1 203 22 is_stmt 1 discriminator 2 view .LVU89
+ 294              	.LVL15:
+ 203:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 295              		.loc 1 203 15 discriminator 2 view .LVU90
+ 203:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 296              		.loc 1 203 3 is_stmt 0 discriminator 2 view .LVU91
+ 297 0024 191D     		adds	r1, r3, #4
+ 298 0026 A142     		cmp	r1, r4
+ 299 0028 00F10400 		add	r0, r0, #4
+ 300 002c F0D1     		bne	.L12
+ 208:.././crypto4/tiny-AES128-C/aes.c ****     }
+ 209:.././crypto4/tiny-AES128-C/aes.c ****   }
+ 210:.././crypto4/tiny-AES128-C/aes.c **** }
+ 301              		.loc 1 210 1 view .LVU92
+ 302 002e F0BD     		pop	{r4, r5, r6, r7, pc}
+ 303              	.L17:
+ 304              		.align	2
+ 305              	.L16:
+ 306 0030 00000000 		.word	.LANCHOR0
+ 307              		.cfi_endproc
+ 308              	.LFE2:
+ 310              		.section	.text.SubBytes,"ax",%progbits
+ 311              		.align	1
+ 312              		.syntax unified
+ 313              		.thumb
+ 314              		.thumb_func
+ 315              		.fpu softvfp
+ 317              	SubBytes:
+ 318              	.LFB3:
+ 211:.././crypto4/tiny-AES128-C/aes.c **** 
+ 212:.././crypto4/tiny-AES128-C/aes.c **** // The SubBytes Function Substitutes the values in the
+ 213:.././crypto4/tiny-AES128-C/aes.c **** // state matrix with values in an S-box.
+ 214:.././crypto4/tiny-AES128-C/aes.c **** static void SubBytes(void)
+ 215:.././crypto4/tiny-AES128-C/aes.c **** {
+ 319              		.loc 1 215 1 is_stmt 1 view -0
+ 320              		.cfi_startproc
+ 321              		@ args = 0, pretend = 0, frame = 0
+ 322              		@ frame_needed = 0, uses_anonymous_args = 0
+ 216:.././crypto4/tiny-AES128-C/aes.c ****   uint8_t i, j;
+ 323              		.loc 1 216 3 view .LVU94
+ 217:.././crypto4/tiny-AES128-C/aes.c ****   for (i = 0; i < 4; ++i)
+ 324              		.loc 1 217 3 view .LVU95
+ 325              	.LVL16:
+ 326              		.loc 1 217 15 view .LVU96
+ 218:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 219:.././crypto4/tiny-AES128-C/aes.c ****     for (j = 0; j < 4; ++j)
+ 220:.././crypto4/tiny-AES128-C/aes.c ****     {
+ 221:.././crypto4/tiny-AES128-C/aes.c ****       (*state)[j][i] = getSBoxValue((*state)[j][i]);
+ 327              		.loc 1 221 38 is_stmt 0 view .LVU97
+ 328 0000 094B     		ldr	r3, .L23
+ 329              	.LBB32:
+ 330              	.LBB33:
+ 129:.././crypto4/tiny-AES128-C/aes.c **** }
+ 331              		.loc 1 129 14 view .LVU98
+ 332 0002 0A48     		ldr	r0, .L23+4
+ 333 0004 D3F8B430 		ldr	r3, [r3, #180]
+ 334              	.LBE33:
+ 335              	.LBE32:
+ 215:.././crypto4/tiny-AES128-C/aes.c ****   uint8_t i, j;
+ 336              		.loc 1 215 1 view .LVU99
+ 337 0008 10B5     		push	{r4, lr}
+ 338              	.LCFI3:
+ 339              		.cfi_def_cfa_offset 8
+ 340              		.cfi_offset 4, -8
+ 341              		.cfi_offset 14, -4
+ 342 000a 191D     		adds	r1, r3, #4
+ 343              	.LVL17:
+ 344              	.L19:
+ 219:.././crypto4/tiny-AES128-C/aes.c ****     {
+ 345              		.loc 1 219 17 is_stmt 1 view .LVU100
+ 215:.././crypto4/tiny-AES128-C/aes.c ****   uint8_t i, j;
+ 346              		.loc 1 215 1 is_stmt 0 view .LVU101
+ 347 000c 0022     		movs	r2, #0
+ 348              	.LVL18:
+ 349              	.L20:
+ 350              		.loc 1 221 7 is_stmt 1 discriminator 3 view .LVU102
+ 351              	.LBB35:
+ 352              	.LBI32:
+ 127:.././crypto4/tiny-AES128-C/aes.c **** {
+ 353              		.loc 1 127 16 discriminator 3 view .LVU103
+ 354              	.LBB34:
+ 129:.././crypto4/tiny-AES128-C/aes.c **** }
+ 355              		.loc 1 129 3 discriminator 3 view .LVU104
+ 129:.././crypto4/tiny-AES128-C/aes.c **** }
+ 356              		.loc 1 129 14 is_stmt 0 discriminator 3 view .LVU105
+ 357 000e 13F82240 		ldrb	r4, [r3, r2, lsl #2]	@ zero_extendqisi2
+ 358 0012 045D     		ldrb	r4, [r0, r4]	@ zero_extendqisi2
+ 359              	.LVL19:
+ 129:.././crypto4/tiny-AES128-C/aes.c **** }
+ 360              		.loc 1 129 14 discriminator 3 view .LVU106
+ 361              	.LBE34:
+ 362              	.LBE35:
+ 363              		.loc 1 221 22 discriminator 3 view .LVU107
+ 364 0014 03F82240 		strb	r4, [r3, r2, lsl #2]
+ 219:.././crypto4/tiny-AES128-C/aes.c ****     {
+ 365              		.loc 1 219 24 is_stmt 1 discriminator 3 view .LVU108
+ 366              	.LVL20:
+ 219:.././crypto4/tiny-AES128-C/aes.c ****     {
+ 367              		.loc 1 219 17 discriminator 3 view .LVU109
+ 219:.././crypto4/tiny-AES128-C/aes.c ****     {
+ 368              		.loc 1 219 5 is_stmt 0 discriminator 3 view .LVU110
+ 369 0018 0132     		adds	r2, r2, #1
+ 370              	.LVL21:
+ 219:.././crypto4/tiny-AES128-C/aes.c ****     {
+ 371              		.loc 1 219 5 discriminator 3 view .LVU111
+ 372 001a 042A     		cmp	r2, #4
+ 373 001c F7D1     		bne	.L20
+ 217:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 374              		.loc 1 217 22 is_stmt 1 discriminator 2 view .LVU112
+ 375              	.LVL22:
+ 217:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 376              		.loc 1 217 15 discriminator 2 view .LVU113
+ 217:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 377              		.loc 1 217 3 is_stmt 0 discriminator 2 view .LVU114
+ 378 001e 0133     		adds	r3, r3, #1
+ 379              	.LVL23:
+ 217:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 380              		.loc 1 217 3 discriminator 2 view .LVU115
+ 381 0020 8B42     		cmp	r3, r1
+ 382 0022 F3D1     		bne	.L19
+ 222:.././crypto4/tiny-AES128-C/aes.c ****     }
+ 223:.././crypto4/tiny-AES128-C/aes.c ****   }
+ 224:.././crypto4/tiny-AES128-C/aes.c **** }
+ 383              		.loc 1 224 1 view .LVU116
+ 384 0024 10BD     		pop	{r4, pc}
+ 385              	.L24:
+ 386 0026 00BF     		.align	2
+ 387              	.L23:
+ 388 0028 00000000 		.word	.LANCHOR0
+ 389 002c 00000000 		.word	.LANCHOR1
+ 390              		.cfi_endproc
+ 391              	.LFE3:
+ 393              		.section	.text.ShiftRows,"ax",%progbits
+ 394              		.align	1
+ 395              		.syntax unified
+ 396              		.thumb
+ 397              		.thumb_func
+ 398              		.fpu softvfp
+ 400              	ShiftRows:
+ 401              	.LFB4:
+ 225:.././crypto4/tiny-AES128-C/aes.c **** 
+ 226:.././crypto4/tiny-AES128-C/aes.c **** // The ShiftRows() function shifts the rows in the state to the left.
+ 227:.././crypto4/tiny-AES128-C/aes.c **** // Each row is shifted with different offset.
+ 228:.././crypto4/tiny-AES128-C/aes.c **** // Offset = Row number. So the first row is not shifted.
+ 229:.././crypto4/tiny-AES128-C/aes.c **** static void ShiftRows(void)
+ 230:.././crypto4/tiny-AES128-C/aes.c **** {
+ 402              		.loc 1 230 1 is_stmt 1 view -0
+ 403              		.cfi_startproc
+ 404              		@ args = 0, pretend = 0, frame = 0
+ 405              		@ frame_needed = 0, uses_anonymous_args = 0
+ 231:.././crypto4/tiny-AES128-C/aes.c ****   uint8_t temp;
+ 406              		.loc 1 231 3 view .LVU118
+ 232:.././crypto4/tiny-AES128-C/aes.c ****   state_copy = (state_t *)malloc(sizeof(state_t) * 16);
+ 407              		.loc 1 232 3 view .LVU119
+ 230:.././crypto4/tiny-AES128-C/aes.c ****   uint8_t temp;
+ 408              		.loc 1 230 1 is_stmt 0 view .LVU120
+ 409 0000 F8B5     		push	{r3, r4, r5, r6, r7, lr}
+ 410              	.LCFI4:
+ 411              		.cfi_def_cfa_offset 24
+ 412              		.cfi_offset 3, -24
+ 413              		.cfi_offset 4, -20
+ 414              		.cfi_offset 5, -16
+ 415              		.cfi_offset 6, -12
+ 416              		.cfi_offset 7, -8
+ 417              		.cfi_offset 14, -4
+ 418              		.loc 1 232 27 view .LVU121
+ 419 0002 4FF48070 		mov	r0, #256
+ 420 0006 FFF7FEFF 		bl	malloc
+ 421              	.LVL24:
+ 233:.././crypto4/tiny-AES128-C/aes.c **** 
+ 234:.././crypto4/tiny-AES128-C/aes.c ****   // Randomize_permuation();
+ 235:.././crypto4/tiny-AES128-C/aes.c **** 
+ 236:.././crypto4/tiny-AES128-C/aes.c ****   for (temp = 0; temp < 16; ++temp)
+ 422              		.loc 1 236 3 is_stmt 1 view .LVU122
+ 423              		.loc 1 236 18 view .LVU123
+ 237:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 238:.././crypto4/tiny-AES128-C/aes.c ****     (*state_copy)[temp % 4][temp / 4] = (*state)[temp % 4][temp / 4]; // NOTE: [column index][row i
+ 424              		.loc 1 238 42 is_stmt 0 view .LVU124
+ 425 000a 144B     		ldr	r3, .L30
+ 426 000c D3F8B450 		ldr	r5, [r3, #180]
+ 427 0010 0023     		movs	r3, #0
+ 428              	.LVL25:
+ 429              	.L26:
+ 430              		.loc 1 238 5 is_stmt 1 discriminator 3 view .LVU125
+ 431              		.loc 1 238 55 is_stmt 0 discriminator 3 view .LVU126
+ 432 0012 03F00302 		and	r2, r3, #3
+ 433              		.loc 1 238 65 discriminator 3 view .LVU127
+ 434 0016 C3F38501 		ubfx	r1, r3, #2, #6
+ 435              		.loc 1 238 39 discriminator 3 view .LVU128
+ 436 001a 00EB8204 		add	r4, r0, r2, lsl #2
+ 437              		.loc 1 238 59 discriminator 3 view .LVU129
+ 438 001e 05EB8202 		add	r2, r5, r2, lsl #2
+ 236:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 439              		.loc 1 236 3 discriminator 3 view .LVU130
+ 440 0022 0133     		adds	r3, r3, #1
+ 441              	.LVL26:
+ 442              		.loc 1 238 39 discriminator 3 view .LVU131
+ 443 0024 525C     		ldrb	r2, [r2, r1]	@ zero_extendqisi2
+ 444 0026 6254     		strb	r2, [r4, r1]
+ 236:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 445              		.loc 1 236 29 is_stmt 1 discriminator 3 view .LVU132
+ 236:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 446              		.loc 1 236 18 discriminator 3 view .LVU133
+ 236:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 447              		.loc 1 236 3 is_stmt 0 discriminator 3 view .LVU134
+ 448 0028 102B     		cmp	r3, #16
+ 449 002a F2D1     		bne	.L26
+ 450 002c 0C4E     		ldr	r6, .L30+4
+ 239:.././crypto4/tiny-AES128-C/aes.c ****   }
+ 240:.././crypto4/tiny-AES128-C/aes.c **** 
+ 241:.././crypto4/tiny-AES128-C/aes.c ****   for (temp = 0; temp < 16; ++temp)
+ 451              		.loc 1 241 13 view .LVU135
+ 452 002e 0023     		movs	r3, #0
+ 453              	.L27:
+ 454              	.LVL27:
+ 242:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 243:.././crypto4/tiny-AES128-C/aes.c ****     (*state)[temp % 4][temp / 4] = (*state_copy)[shift_rows[temp] % 4][shift_rows[temp] / 4];
+ 455              		.loc 1 243 5 is_stmt 1 discriminator 3 view .LVU136
+ 456              		.loc 1 243 60 is_stmt 0 discriminator 3 view .LVU137
+ 457 0030 16F8012B 		ldrb	r2, [r6], #1	@ zero_extendqisi2
+ 458              		.loc 1 243 67 discriminator 3 view .LVU138
+ 459 0034 02F00304 		and	r4, r2, #3
+ 460              		.loc 1 243 19 discriminator 3 view .LVU139
+ 461 0038 03F00301 		and	r1, r3, #3
+ 462              		.loc 1 243 29 discriminator 3 view .LVU140
+ 463 003c 9F08     		lsrs	r7, r3, #2
+ 464              		.loc 1 243 89 discriminator 3 view .LVU141
+ 465 003e 9208     		lsrs	r2, r2, #2
+ 466              		.loc 1 243 71 discriminator 3 view .LVU142
+ 467 0040 00EB8404 		add	r4, r0, r4, lsl #2
+ 241:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 468              		.loc 1 241 29 discriminator 3 view .LVU143
+ 469 0044 0133     		adds	r3, r3, #1
+ 470              	.LVL28:
+ 471              		.loc 1 243 34 discriminator 3 view .LVU144
+ 472 0046 05EB8101 		add	r1, r5, r1, lsl #2
+ 241:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 473              		.loc 1 241 29 discriminator 3 view .LVU145
+ 474 004a DBB2     		uxtb	r3, r3
+ 475              		.loc 1 243 34 discriminator 3 view .LVU146
+ 476 004c A25C     		ldrb	r2, [r4, r2]	@ zero_extendqisi2
+ 477 004e CA55     		strb	r2, [r1, r7]
+ 241:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 478              		.loc 1 241 29 is_stmt 1 discriminator 3 view .LVU147
+ 479              	.LVL29:
+ 241:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 480              		.loc 1 241 18 discriminator 3 view .LVU148
+ 241:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 481              		.loc 1 241 3 is_stmt 0 discriminator 3 view .LVU149
+ 482 0050 102B     		cmp	r3, #16
+ 483 0052 EDD1     		bne	.L27
+ 244:.././crypto4/tiny-AES128-C/aes.c ****   }
+ 245:.././crypto4/tiny-AES128-C/aes.c **** 
+ 246:.././crypto4/tiny-AES128-C/aes.c ****   free(state_copy);
+ 484              		.loc 1 246 3 is_stmt 1 view .LVU150
+ 247:.././crypto4/tiny-AES128-C/aes.c **** 
+ 248:.././crypto4/tiny-AES128-C/aes.c ****   /*
+ 249:.././crypto4/tiny-AES128-C/aes.c ****   // Rotate first row 1 columns to left
+ 250:.././crypto4/tiny-AES128-C/aes.c ****   temp = (*state)[0][1];
+ 251:.././crypto4/tiny-AES128-C/aes.c ****   (*state)[0][1] = (*state)[1][1];
+ 252:.././crypto4/tiny-AES128-C/aes.c ****   (*state)[1][1] = (*state)[2][1];
+ 253:.././crypto4/tiny-AES128-C/aes.c ****   (*state)[2][1] = (*state)[3][1];
+ 254:.././crypto4/tiny-AES128-C/aes.c ****   (*state)[3][1] = temp;
+ 255:.././crypto4/tiny-AES128-C/aes.c **** 
+ 256:.././crypto4/tiny-AES128-C/aes.c ****   // Rotate second row 2 columns to left
+ 257:.././crypto4/tiny-AES128-C/aes.c ****   temp = (*state)[0][2];
+ 258:.././crypto4/tiny-AES128-C/aes.c ****   (*state)[0][2] = (*state)[2][2];
+ 259:.././crypto4/tiny-AES128-C/aes.c ****   (*state)[2][2] = temp;
+ 260:.././crypto4/tiny-AES128-C/aes.c ****   // Rotate second row 2 columns to left
+ 261:.././crypto4/tiny-AES128-C/aes.c ****   temp = (*state)[1][2];
+ 262:.././crypto4/tiny-AES128-C/aes.c ****   (*state)[1][2] = (*state)[3][2];
+ 263:.././crypto4/tiny-AES128-C/aes.c ****   (*state)[3][2] = temp;
+ 264:.././crypto4/tiny-AES128-C/aes.c **** 
+ 265:.././crypto4/tiny-AES128-C/aes.c ****   // Rotate second row 2 columns to left
+ 266:.././crypto4/tiny-AES128-C/aes.c **** 
+ 267:.././crypto4/tiny-AES128-C/aes.c ****   // Rotate third row 3 columns to left
+ 268:.././crypto4/tiny-AES128-C/aes.c ****   temp = (*state)[0][3];
+ 269:.././crypto4/tiny-AES128-C/aes.c ****   (*state)[0][3] = (*state)[3][3];
+ 270:.././crypto4/tiny-AES128-C/aes.c ****   (*state)[3][3] = (*state)[2][3];
+ 271:.././crypto4/tiny-AES128-C/aes.c ****   (*state)[2][3] = (*state)[1][3];
+ 272:.././crypto4/tiny-AES128-C/aes.c ****   (*state)[1][3] = temp;
+ 273:.././crypto4/tiny-AES128-C/aes.c ****   */
+ 274:.././crypto4/tiny-AES128-C/aes.c **** }
+ 485              		.loc 1 274 1 is_stmt 0 view .LVU151
+ 486 0054 BDE8F840 		pop	{r3, r4, r5, r6, r7, lr}
+ 487              	.LCFI5:
+ 488              		.cfi_restore 14
+ 489              		.cfi_restore 7
+ 490              		.cfi_restore 6
+ 491              		.cfi_restore 5
+ 492              		.cfi_restore 4
+ 493              		.cfi_restore 3
+ 494              		.cfi_def_cfa_offset 0
+ 495              	.LVL30:
+ 246:.././crypto4/tiny-AES128-C/aes.c **** 
+ 496              		.loc 1 246 3 view .LVU152
+ 497 0058 FFF7FEBF 		b	free
+ 498              	.LVL31:
+ 499              	.L31:
+ 500              		.align	2
+ 501              	.L30:
+ 502 005c 00000000 		.word	.LANCHOR0
+ 503 0060 00000000 		.word	shift_rows
+ 504              		.cfi_endproc
+ 505              	.LFE4:
+ 507              		.section	.text.Cipher,"ax",%progbits
+ 508              		.align	1
+ 509              		.syntax unified
+ 510              		.thumb
+ 511              		.thumb_func
+ 512              		.fpu softvfp
+ 514              	Cipher:
+ 515              	.LFB7:
+ 275:.././crypto4/tiny-AES128-C/aes.c **** 
+ 276:.././crypto4/tiny-AES128-C/aes.c **** static uint8_t xtime(uint8_t x)
+ 277:.././crypto4/tiny-AES128-C/aes.c **** {
+ 278:.././crypto4/tiny-AES128-C/aes.c ****   return ((x << 1) ^ (((x >> 7) & 1) * 0x1b));
+ 279:.././crypto4/tiny-AES128-C/aes.c **** }
+ 280:.././crypto4/tiny-AES128-C/aes.c **** 
+ 281:.././crypto4/tiny-AES128-C/aes.c **** // MixColumns function mixes the columns of the state matrix
+ 282:.././crypto4/tiny-AES128-C/aes.c **** static void MixColumns(void)
+ 283:.././crypto4/tiny-AES128-C/aes.c **** {
+ 284:.././crypto4/tiny-AES128-C/aes.c ****   uint8_t i;
+ 285:.././crypto4/tiny-AES128-C/aes.c ****   uint8_t Tmp, Tm, t;
+ 286:.././crypto4/tiny-AES128-C/aes.c ****   for (i = 0; i < 4; ++i)
+ 287:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 288:.././crypto4/tiny-AES128-C/aes.c ****     t = (*state)[i][0];
+ 289:.././crypto4/tiny-AES128-C/aes.c ****     Tmp = (*state)[i][0] ^ (*state)[i][1] ^ (*state)[i][2] ^ (*state)[i][3];
+ 290:.././crypto4/tiny-AES128-C/aes.c ****     Tm = (*state)[i][0] ^ (*state)[i][1];
+ 291:.././crypto4/tiny-AES128-C/aes.c ****     Tm = xtime(Tm);
+ 292:.././crypto4/tiny-AES128-C/aes.c ****     (*state)[i][0] ^= Tm ^ Tmp;
+ 293:.././crypto4/tiny-AES128-C/aes.c ****     Tm = (*state)[i][1] ^ (*state)[i][2];
+ 294:.././crypto4/tiny-AES128-C/aes.c ****     Tm = xtime(Tm);
+ 295:.././crypto4/tiny-AES128-C/aes.c ****     (*state)[i][1] ^= Tm ^ Tmp;
+ 296:.././crypto4/tiny-AES128-C/aes.c ****     Tm = (*state)[i][2] ^ (*state)[i][3];
+ 297:.././crypto4/tiny-AES128-C/aes.c ****     Tm = xtime(Tm);
+ 298:.././crypto4/tiny-AES128-C/aes.c ****     (*state)[i][2] ^= Tm ^ Tmp;
+ 299:.././crypto4/tiny-AES128-C/aes.c ****     Tm = (*state)[i][3] ^ t;
+ 300:.././crypto4/tiny-AES128-C/aes.c ****     Tm = xtime(Tm);
+ 301:.././crypto4/tiny-AES128-C/aes.c ****     (*state)[i][3] ^= Tm ^ Tmp;
+ 302:.././crypto4/tiny-AES128-C/aes.c ****   }
+ 303:.././crypto4/tiny-AES128-C/aes.c **** }
+ 304:.././crypto4/tiny-AES128-C/aes.c **** 
+ 305:.././crypto4/tiny-AES128-C/aes.c **** // Multiply is used to multiply numbers in the field GF(2^8)
+ 306:.././crypto4/tiny-AES128-C/aes.c **** #if MULTIPLY_AS_A_FUNCTION
+ 307:.././crypto4/tiny-AES128-C/aes.c **** static uint8_t Multiply(uint8_t x, uint8_t y)
+ 308:.././crypto4/tiny-AES128-C/aes.c **** {
+ 309:.././crypto4/tiny-AES128-C/aes.c ****   return (((y & 1) * x) ^
+ 310:.././crypto4/tiny-AES128-C/aes.c ****           ((y >> 1 & 1) * xtime(x)) ^
+ 311:.././crypto4/tiny-AES128-C/aes.c ****           ((y >> 2 & 1) * xtime(xtime(x))) ^
+ 312:.././crypto4/tiny-AES128-C/aes.c ****           ((y >> 3 & 1) * xtime(xtime(xtime(x)))) ^
+ 313:.././crypto4/tiny-AES128-C/aes.c ****           ((y >> 4 & 1) * xtime(xtime(xtime(xtime(x))))));
+ 314:.././crypto4/tiny-AES128-C/aes.c **** }
+ 315:.././crypto4/tiny-AES128-C/aes.c **** #else
+ 316:.././crypto4/tiny-AES128-C/aes.c **** #define Multiply(x, y)                       \
+ 317:.././crypto4/tiny-AES128-C/aes.c ****   (((y & 1) * x) ^                           \
+ 318:.././crypto4/tiny-AES128-C/aes.c ****    ((y >> 1 & 1) * xtime(x)) ^               \
+ 319:.././crypto4/tiny-AES128-C/aes.c ****    ((y >> 2 & 1) * xtime(xtime(x))) ^        \
+ 320:.././crypto4/tiny-AES128-C/aes.c ****    ((y >> 3 & 1) * xtime(xtime(xtime(x)))) ^ \
+ 321:.././crypto4/tiny-AES128-C/aes.c ****    ((y >> 4 & 1) * xtime(xtime(xtime(xtime(x))))))
+ 322:.././crypto4/tiny-AES128-C/aes.c **** 
+ 323:.././crypto4/tiny-AES128-C/aes.c **** #endif
+ 324:.././crypto4/tiny-AES128-C/aes.c **** 
+ 325:.././crypto4/tiny-AES128-C/aes.c **** // Cipher is the main function that encrypts the PlainText.
+ 326:.././crypto4/tiny-AES128-C/aes.c **** static void Cipher(void)
+ 327:.././crypto4/tiny-AES128-C/aes.c **** {
+ 516              		.loc 1 327 1 is_stmt 1 view -0
+ 517              		.cfi_startproc
+ 518              		@ args = 0, pretend = 0, frame = 0
+ 519              		@ frame_needed = 0, uses_anonymous_args = 0
+ 328:.././crypto4/tiny-AES128-C/aes.c ****   uint8_t round = 0;
+ 520              		.loc 1 328 3 view .LVU154
+ 521              	.LVL32:
+ 329:.././crypto4/tiny-AES128-C/aes.c **** 
+ 330:.././crypto4/tiny-AES128-C/aes.c ****   // Add the First round key to the state before starting the rounds.
+ 331:.././crypto4/tiny-AES128-C/aes.c ****   AddRoundKey(0);
+ 522              		.loc 1 331 3 view .LVU155
+ 327:.././crypto4/tiny-AES128-C/aes.c ****   uint8_t round = 0;
+ 523              		.loc 1 327 1 is_stmt 0 view .LVU156
+ 524 0000 10B5     		push	{r4, lr}
+ 525              	.LCFI6:
+ 526              		.cfi_def_cfa_offset 8
+ 527              		.cfi_offset 4, -8
+ 528              		.cfi_offset 14, -4
+ 529              		.loc 1 331 3 view .LVU157
+ 530 0002 0020     		movs	r0, #0
+ 531 0004 FFF7FEFF 		bl	AddRoundKey
+ 532              	.LVL33:
+ 332:.././crypto4/tiny-AES128-C/aes.c **** 
+ 333:.././crypto4/tiny-AES128-C/aes.c ****   // There will be Nr rounds.
+ 334:.././crypto4/tiny-AES128-C/aes.c ****   // The first Nr-1 rounds are identical.
+ 335:.././crypto4/tiny-AES128-C/aes.c ****   // These Nr-1 rounds are executed in the loop below.
+ 336:.././crypto4/tiny-AES128-C/aes.c ****   for (round = 1; round < Nr; ++round)
+ 533              		.loc 1 336 3 is_stmt 1 view .LVU158
+ 534              		.loc 1 336 19 view .LVU159
+ 535              		.loc 1 336 14 is_stmt 0 view .LVU160
+ 536 0008 0124     		movs	r4, #1
+ 537              	.LVL34:
+ 538              	.L33:
+ 337:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 338:.././crypto4/tiny-AES128-C/aes.c ****     SubBytes();
+ 539              		.loc 1 338 5 is_stmt 1 discriminator 3 view .LVU161
+ 540 000a FFF7FEFF 		bl	SubBytes
+ 541              	.LVL35:
+ 339:.././crypto4/tiny-AES128-C/aes.c ****     ShiftRows();
+ 542              		.loc 1 339 5 discriminator 3 view .LVU162
+ 543 000e FFF7FEFF 		bl	ShiftRows
+ 544              	.LVL36:
+ 340:.././crypto4/tiny-AES128-C/aes.c ****     // MixColumns();
+ 341:.././crypto4/tiny-AES128-C/aes.c ****     AddRoundKey(round);
+ 545              		.loc 1 341 5 discriminator 3 view .LVU163
+ 546 0012 2046     		mov	r0, r4
+ 336:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 547              		.loc 1 336 31 is_stmt 0 discriminator 3 view .LVU164
+ 548 0014 0134     		adds	r4, r4, #1
+ 549              	.LVL37:
+ 336:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 550              		.loc 1 336 31 discriminator 3 view .LVU165
+ 551 0016 E4B2     		uxtb	r4, r4
+ 552              		.loc 1 341 5 discriminator 3 view .LVU166
+ 553 0018 FFF7FEFF 		bl	AddRoundKey
+ 554              	.LVL38:
+ 336:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 555              		.loc 1 336 31 is_stmt 1 discriminator 3 view .LVU167
+ 336:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 556              		.loc 1 336 19 discriminator 3 view .LVU168
+ 336:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 557              		.loc 1 336 3 is_stmt 0 discriminator 3 view .LVU169
+ 558 001c 0A2C     		cmp	r4, #10
+ 559 001e F4D1     		bne	.L33
+ 342:.././crypto4/tiny-AES128-C/aes.c ****   }
+ 343:.././crypto4/tiny-AES128-C/aes.c **** 
+ 344:.././crypto4/tiny-AES128-C/aes.c ****   // The last round is given below.
+ 345:.././crypto4/tiny-AES128-C/aes.c ****   // The MixColumns function is not here in the last round.
+ 346:.././crypto4/tiny-AES128-C/aes.c ****   SubBytes();
+ 560              		.loc 1 346 3 is_stmt 1 view .LVU170
+ 561 0020 FFF7FEFF 		bl	SubBytes
+ 562              	.LVL39:
+ 347:.././crypto4/tiny-AES128-C/aes.c ****   ShiftRows();
+ 563              		.loc 1 347 3 view .LVU171
+ 564 0024 FFF7FEFF 		bl	ShiftRows
+ 565              	.LVL40:
+ 348:.././crypto4/tiny-AES128-C/aes.c ****   AddRoundKey(Nr);
+ 566              		.loc 1 348 3 view .LVU172
+ 567 0028 2046     		mov	r0, r4
+ 349:.././crypto4/tiny-AES128-C/aes.c **** }
+ 568              		.loc 1 349 1 is_stmt 0 view .LVU173
+ 569 002a BDE81040 		pop	{r4, lr}
+ 570              	.LCFI7:
+ 571              		.cfi_restore 14
+ 572              		.cfi_restore 4
+ 573              		.cfi_def_cfa_offset 0
+ 574              	.LVL41:
+ 348:.././crypto4/tiny-AES128-C/aes.c ****   AddRoundKey(Nr);
+ 575              		.loc 1 348 3 view .LVU174
+ 576 002e FFF7FEBF 		b	AddRoundKey
+ 577              	.LVL42:
+ 348:.././crypto4/tiny-AES128-C/aes.c ****   AddRoundKey(Nr);
+ 578              		.loc 1 348 3 view .LVU175
+ 579              		.cfi_endproc
+ 580              	.LFE7:
+ 582              		.section	.text.AES128_ECB_indp_setkey,"ax",%progbits
+ 583              		.align	1
+ 584              		.global	AES128_ECB_indp_setkey
+ 585              		.syntax unified
+ 586              		.thumb
+ 587              		.thumb_func
+ 588              		.fpu softvfp
+ 590              	AES128_ECB_indp_setkey:
+ 591              	.LVL43:
+ 592              	.LFB9:
+ 350:.././crypto4/tiny-AES128-C/aes.c **** 
+ 351:.././crypto4/tiny-AES128-C/aes.c **** static void BlockCopy(uint8_t *output, const uint8_t *input)
+ 352:.././crypto4/tiny-AES128-C/aes.c **** {
+ 353:.././crypto4/tiny-AES128-C/aes.c ****   uint8_t i;
+ 354:.././crypto4/tiny-AES128-C/aes.c ****   for (i = 0; i < KEYLEN; ++i)
+ 355:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 356:.././crypto4/tiny-AES128-C/aes.c ****     output[i] = input[i];
+ 357:.././crypto4/tiny-AES128-C/aes.c ****   }
+ 358:.././crypto4/tiny-AES128-C/aes.c **** }
+ 359:.././crypto4/tiny-AES128-C/aes.c **** 
+ 360:.././crypto4/tiny-AES128-C/aes.c **** /*****************************************************************************/
+ 361:.././crypto4/tiny-AES128-C/aes.c **** /* Public functions:                                                         */
+ 362:.././crypto4/tiny-AES128-C/aes.c **** /*****************************************************************************/
+ 363:.././crypto4/tiny-AES128-C/aes.c **** 
+ 364:.././crypto4/tiny-AES128-C/aes.c **** void AES128_ECB_indp_setkey(uint8_t *key)
+ 365:.././crypto4/tiny-AES128-C/aes.c **** {
+ 593              		.loc 1 365 1 is_stmt 1 view -0
+ 594              		.cfi_startproc
+ 595              		@ args = 0, pretend = 0, frame = 0
+ 596              		@ frame_needed = 0, uses_anonymous_args = 0
+ 597              		@ link register save eliminated.
+ 366:.././crypto4/tiny-AES128-C/aes.c ****   Key = key;
+ 598              		.loc 1 366 3 view .LVU177
+ 599              		.loc 1 366 7 is_stmt 0 view .LVU178
+ 600 0000 014B     		ldr	r3, .L36
+ 601 0002 1860     		str	r0, [r3]
+ 367:.././crypto4/tiny-AES128-C/aes.c ****   KeyExpansion();
+ 602              		.loc 1 367 3 is_stmt 1 view .LVU179
+ 603 0004 FFF7FEBF 		b	KeyExpansion
+ 604              	.LVL44:
+ 605              	.L37:
+ 606              		.loc 1 367 3 is_stmt 0 view .LVU180
+ 607              		.align	2
+ 608              	.L36:
+ 609 0008 00000000 		.word	.LANCHOR0
+ 610              		.cfi_endproc
+ 611              	.LFE9:
+ 613              		.section	.text.AES128_ECB_indp_crypto,"ax",%progbits
+ 614              		.align	1
+ 615              		.global	AES128_ECB_indp_crypto
+ 616              		.syntax unified
+ 617              		.thumb
+ 618              		.thumb_func
+ 619              		.fpu softvfp
+ 621              	AES128_ECB_indp_crypto:
+ 622              	.LVL45:
+ 623              	.LFB10:
+ 368:.././crypto4/tiny-AES128-C/aes.c **** }
+ 369:.././crypto4/tiny-AES128-C/aes.c **** 
+ 370:.././crypto4/tiny-AES128-C/aes.c **** void AES128_ECB_indp_crypto(uint8_t *input)
+ 371:.././crypto4/tiny-AES128-C/aes.c **** {
+ 624              		.loc 1 371 1 is_stmt 1 view -0
+ 625              		.cfi_startproc
+ 626              		@ args = 0, pretend = 0, frame = 0
+ 627              		@ frame_needed = 0, uses_anonymous_args = 0
+ 628              		@ link register save eliminated.
+ 372:.././crypto4/tiny-AES128-C/aes.c ****   state = (state_t *)input;
+ 629              		.loc 1 372 3 view .LVU182
+ 630              		.loc 1 372 9 is_stmt 0 view .LVU183
+ 631 0000 064B     		ldr	r3, .L41
+ 632 0002 421E     		subs	r2, r0, #1
+ 633 0004 C3F8B400 		str	r0, [r3, #180]
+ 373:.././crypto4/tiny-AES128-C/aes.c ****   BlockCopy(input_save, input);
+ 634              		.loc 1 373 3 is_stmt 1 view .LVU184
+ 635              	.LVL46:
+ 636              	.LBB38:
+ 637              	.LBI38:
+ 351:.././crypto4/tiny-AES128-C/aes.c **** {
+ 638              		.loc 1 351 13 view .LVU185
+ 639              	.LBB39:
+ 353:.././crypto4/tiny-AES128-C/aes.c ****   for (i = 0; i < KEYLEN; ++i)
+ 640              		.loc 1 353 3 view .LVU186
+ 354:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 641              		.loc 1 354 3 view .LVU187
+ 354:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 642              		.loc 1 354 15 view .LVU188
+ 643 0008 B833     		adds	r3, r3, #184
+ 644 000a 0F30     		adds	r0, r0, #15
+ 645              	.LVL47:
+ 646              	.L39:
+ 356:.././crypto4/tiny-AES128-C/aes.c ****   }
+ 647              		.loc 1 356 5 view .LVU189
+ 356:.././crypto4/tiny-AES128-C/aes.c ****   }
+ 648              		.loc 1 356 22 is_stmt 0 view .LVU190
+ 649 000c 12F8011F 		ldrb	r1, [r2, #1]!	@ zero_extendqisi2
+ 650              	.LVL48:
+ 356:.././crypto4/tiny-AES128-C/aes.c ****   }
+ 651              		.loc 1 356 15 view .LVU191
+ 652 0010 03F8011B 		strb	r1, [r3], #1
+ 354:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 653              		.loc 1 354 27 is_stmt 1 view .LVU192
+ 654              	.LVL49:
+ 354:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 655              		.loc 1 354 15 view .LVU193
+ 354:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 656              		.loc 1 354 3 is_stmt 0 view .LVU194
+ 657 0014 8242     		cmp	r2, r0
+ 658 0016 F9D1     		bne	.L39
+ 659              	.LVL50:
+ 354:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 660              		.loc 1 354 3 view .LVU195
+ 661              	.LBE39:
+ 662              	.LBE38:
+ 374:.././crypto4/tiny-AES128-C/aes.c ****   Cipher();
+ 663              		.loc 1 374 3 is_stmt 1 view .LVU196
+ 664 0018 FFF7FEBF 		b	Cipher
+ 665              	.LVL51:
+ 666              	.L42:
+ 667              		.loc 1 374 3 is_stmt 0 view .LVU197
+ 668              		.align	2
+ 669              	.L41:
+ 670 001c 00000000 		.word	.LANCHOR0
+ 671              		.cfi_endproc
+ 672              	.LFE10:
+ 674              		.section	.text.AES128_ECB_encrypt,"ax",%progbits
+ 675              		.align	1
+ 676              		.global	AES128_ECB_encrypt
+ 677              		.syntax unified
+ 678              		.thumb
+ 679              		.thumb_func
+ 680              		.fpu softvfp
+ 682              	AES128_ECB_encrypt:
+ 683              	.LVL52:
+ 684              	.LFB11:
+ 375:.././crypto4/tiny-AES128-C/aes.c **** }
+ 376:.././crypto4/tiny-AES128-C/aes.c **** 
+ 377:.././crypto4/tiny-AES128-C/aes.c **** void AES128_ECB_encrypt(uint8_t *input, uint8_t *key, uint8_t *output)
+ 378:.././crypto4/tiny-AES128-C/aes.c **** {
+ 685              		.loc 1 378 1 is_stmt 1 view -0
+ 686              		.cfi_startproc
+ 687              		@ args = 0, pretend = 0, frame = 0
+ 688              		@ frame_needed = 0, uses_anonymous_args = 0
+ 379:.././crypto4/tiny-AES128-C/aes.c ****   // Copy input to output, and work in-memory on output
+ 380:.././crypto4/tiny-AES128-C/aes.c ****   BlockCopy(output, input);
+ 689              		.loc 1 380 3 view .LVU199
+ 690              	.LBB42:
+ 691              	.LBI42:
+ 351:.././crypto4/tiny-AES128-C/aes.c **** {
+ 692              		.loc 1 351 13 view .LVU200
+ 693              	.LBB43:
+ 353:.././crypto4/tiny-AES128-C/aes.c ****   for (i = 0; i < KEYLEN; ++i)
+ 694              		.loc 1 353 3 view .LVU201
+ 354:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 695              		.loc 1 354 3 view .LVU202
+ 354:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 696              		.loc 1 354 15 view .LVU203
+ 697              	.LBE43:
+ 698              	.LBE42:
+ 378:.././crypto4/tiny-AES128-C/aes.c ****   // Copy input to output, and work in-memory on output
+ 699              		.loc 1 378 1 is_stmt 0 view .LVU204
+ 700 0000 38B5     		push	{r3, r4, r5, lr}
+ 701              	.LCFI8:
+ 702              		.cfi_def_cfa_offset 16
+ 703              		.cfi_offset 3, -16
+ 704              		.cfi_offset 4, -12
+ 705              		.cfi_offset 5, -8
+ 706              		.cfi_offset 14, -4
+ 707 0002 431E     		subs	r3, r0, #1
+ 708 0004 541E     		subs	r4, r2, #1
+ 709 0006 0F30     		adds	r0, r0, #15
+ 710              	.LVL53:
+ 711              	.L44:
+ 712              	.LBB45:
+ 713              	.LBB44:
+ 356:.././crypto4/tiny-AES128-C/aes.c ****   }
+ 714              		.loc 1 356 5 is_stmt 1 view .LVU205
+ 356:.././crypto4/tiny-AES128-C/aes.c ****   }
+ 715              		.loc 1 356 22 is_stmt 0 view .LVU206
+ 716 0008 13F8015F 		ldrb	r5, [r3, #1]!	@ zero_extendqisi2
+ 717              	.LVL54:
+ 356:.././crypto4/tiny-AES128-C/aes.c ****   }
+ 718              		.loc 1 356 15 view .LVU207
+ 719 000c 04F8015F 		strb	r5, [r4, #1]!
+ 354:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 720              		.loc 1 354 27 is_stmt 1 view .LVU208
+ 721              	.LVL55:
+ 354:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 722              		.loc 1 354 15 view .LVU209
+ 354:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 723              		.loc 1 354 3 is_stmt 0 view .LVU210
+ 724 0010 8342     		cmp	r3, r0
+ 725 0012 F9D1     		bne	.L44
+ 726              	.LVL56:
+ 354:.././crypto4/tiny-AES128-C/aes.c ****   {
+ 727              		.loc 1 354 3 view .LVU211
+ 728              	.LBE44:
+ 729              	.LBE45:
+ 381:.././crypto4/tiny-AES128-C/aes.c ****   state = (state_t *)output;
+ 730              		.loc 1 381 3 is_stmt 1 view .LVU212
+ 731              		.loc 1 381 9 is_stmt 0 view .LVU213
+ 732 0014 044B     		ldr	r3, .L46
+ 733 0016 C3F8B420 		str	r2, [r3, #180]
+ 382:.././crypto4/tiny-AES128-C/aes.c **** 
+ 383:.././crypto4/tiny-AES128-C/aes.c ****   Key = key;
+ 734              		.loc 1 383 3 is_stmt 1 view .LVU214
+ 735              		.loc 1 383 7 is_stmt 0 view .LVU215
+ 736 001a 1960     		str	r1, [r3]
+ 384:.././crypto4/tiny-AES128-C/aes.c ****   KeyExpansion();
+ 737              		.loc 1 384 3 is_stmt 1 view .LVU216
+ 738 001c FFF7FEFF 		bl	KeyExpansion
+ 739              	.LVL57:
+ 385:.././crypto4/tiny-AES128-C/aes.c **** 
+ 386:.././crypto4/tiny-AES128-C/aes.c ****   // The next function call encrypts the PlainText with the Key using AES algorithm.
+ 387:.././crypto4/tiny-AES128-C/aes.c ****   Cipher();
+ 740              		.loc 1 387 3 view .LVU217
+ 388:.././crypto4/tiny-AES128-C/aes.c **** }...
+ 741              		.loc 1 388 1 is_stmt 0 view .LVU218
+ 742 0020 BDE83840 		pop	{r3, r4, r5, lr}
+ 743              	.LCFI9:
+ 744              		.cfi_restore 14
+ 745              		.cfi_restore 5
+ 746              		.cfi_restore 4
+ 747              		.cfi_restore 3
+ 748              		.cfi_def_cfa_offset 0
+ 387:.././crypto4/tiny-AES128-C/aes.c ****   Cipher();
+ 749              		.loc 1 387 3 view .LVU219
+ 750 0024 FFF7FEBF 		b	Cipher
+ 751              	.LVL58:
+ 752              	.L47:
+ 753              		.align	2
+ 754              	.L46:
+ 755 0028 00000000 		.word	.LANCHOR0
+ 756              		.cfi_endproc
+ 757              	.LFE11:
+ 759              		.global	Rcon
+ 760              		.global	rsbox
+ 761              		.global	sbox
+ 762              		.data
+ 763              		.set	.LANCHOR1,. + 0
+ 766              	sbox:
+ 767 0000 637C777B 		.ascii	"c|w{\362ko\3050\001g+\376\327\253v\312\202\311}\372"
+ 767      F26B6FC5 
+ 767      3001672B 
+ 767      FED7AB76 
+ 767      CA82C97D 
+ 768 0015 5947F0AD 		.ascii	"YG\360\255\324\242\257\234\244r\300\267\375\223&6?\367"
+ 768      D4A2AF9C 
+ 768      A472C0B7 
+ 768      FD932636 
+ 768      3FF7
+ 769 0027 CC34A5E5 		.ascii	"\3144\245\345\361q\3301\025\004\307#\303\030\226\005"
+ 769      F171D831 
+ 769      1504C723 
+ 769      C3189605 
+ 770 0037 9A071280 		.ascii	"\232\007\022\200\342\353'\262u\011\203,\032\033nZ\240"
+ 770      E2EB27B2 
+ 770      7509832C 
+ 770      1A1B6E5A 
+ 770      A0
+ 771 0048 523BD6B3 		.ascii	"R;\326\263)\343/\204S\321\000\355 \374\261[j\313\276"
+ 771      29E32F84 
+ 771      53D100ED 
+ 771      20FCB15B 
+ 771      6ACBBE
+ 772 005b 394A4C58 		.ascii	"9JLX\317\320\357\252\373CM3\205E\371\002\177P<\237\250"
+ 772      CFD0EFAA 
+ 772      FB434D33 
+ 772      8545F902 
+ 772      7F503C9F 
+ 773 0070 51A3408F 		.ascii	"Q\243@\217\222\2358\365\274\266\332!\020\377\363\322"
+ 773      929D38F5 
+ 773      BCB6DA21 
+ 773      10FFF3D2 
+ 774 0080 CD0C13EC 		.ascii	"\315\014\023\354_\227D\027\304\247~=d]\031s`\201O\334"
+ 774      5F974417 
+ 774      C4A77E3D 
+ 774      645D1973 
+ 774      60814FDC 
+ 775 0094 222A9088 		.ascii	"\"*\220\210F\356\270\024\336^\013\333\3402:\012I\006"
+ 775      46EEB814 
+ 775      DE5E0BDB 
+ 775      E0323A0A 
+ 775      4906
+ 776 00a6 245CC2D3 		.ascii	"$\\\302\323\254b\221\225\344y\347\3107m\215\325N\251"
+ 776      AC629195 
+ 776      E479E7C8 
+ 776      376D8DD5 
+ 776      4EA9
+ 777 00b8 6C56F4EA 		.ascii	"lV\364\352ez\256\010\272x%.\034\246\264\306\350\335"
+ 777      657AAE08 
+ 777      BA78252E 
+ 777      1CA6B4C6 
+ 777      E8DD
+ 778 00ca 741F4BBD 		.ascii	"t\037K\275\213\212p>\265fH\003\366\016a5W\271\206\301"
+ 778      8B8A703E 
+ 778      B5664803 
+ 778      F60E6135 
+ 778      57B986C1 
+ 779 00de 1D9EE1F8 		.ascii	"\035\236\341\370\230\021i\331\216\224\233\036\207\351"
+ 779      981169D9 
+ 779      8E949B1E 
+ 779      87E9
+ 780 00ec CE5528DF 		.ascii	"\316U(\337\214\241\211\015\277\346BhA\231-\017\260T"
+ 780      8CA1890D 
+ 780      BFE64268 
+ 780      41992D0F 
+ 780      B054
+ 781 00fe BB16     		.ascii	"\273\026"
+ 784              	Rcon:
+ 785 0100 8D010204 		.ascii	"\215\001\002\004\010\020 @\200\0336"
+ 785      08102040 
+ 785      801B36
+ 788              	rsbox:
+ 789 010b 52096AD5 		.ascii	"R\011j\32506\2458\277@\243\236\201\363\327\373|\343"
+ 789      3036A538 
+ 789      BF40A39E 
+ 789      81F3D7FB 
+ 789      7CE3
+ 790 011d 39829B2F 		.ascii	"9\202\233/\377\2074\216CD\304\336\351\313T{\2242\246"
+ 790      FF87348E 
+ 790      4344C4DE 
+ 790      E9CB547B 
+ 790      9432A6
+ 791 0130 C2233DEE 		.ascii	"\302#=\356L\225\013B\372\303N\010.\241f(\331$\262v["
+ 791      4C950B42 
+ 791      FAC34E08 
+ 791      2EA16628 
+ 791      D924B276 
+ 792 0145 A2496D8B 		.ascii	"\242Im\213\321%r\370\366d\206h\230\026\324\244\\\314"
+ 792      D12572F8 
+ 792      F6648668 
+ 792      9816D4A4 
+ 792      5CCC
+ 793 0157 5D65B692 		.ascii	"]e\266\222lpHP\375\355\271\332^\025FW\247\215\235\204"
+ 793      6C704850 
+ 793      FDEDB9DA 
+ 793      5E154657 
+ 793      A78D9D84 
+ 794 016b 90D8AB00 		.ascii	"\220\330\253\000\214\274\323\012\367\344X\005\270\263"
+ 794      8CBCD30A 
+ 794      F7E45805 
+ 794      B8B3
+ 795 0179 4506D02C 		.ascii	"E\006\320,\036\217\312?\017\002\301\257\275\003\001"
+ 795      1E8FCA3F 
+ 795      0F02C1AF 
+ 795      BD0301
+ 796 0188 138A6B3A 		.ascii	"\023\212k:\221\021AOg\334\352\227\362\317\316\360\264"
+ 796      9111414F 
+ 796      67DCEA97 
+ 796      F2CFCEF0 
+ 796      B4
+ 797 0199 E67396AC 		.ascii	"\346s\226\254t\"\347\2555\205\342\3717\350\034u\337"
+ 797      7422E7AD 
+ 797      3585E2F9 
+ 797      37E81C75 
+ 797      DF
+ 798 01aa 6E47F11A 		.ascii	"nG\361\032q\035)\305\211o\267b\016\252\030\276\033\374"
+ 798      711D29C5 
+ 798      896FB762 
+ 798      0EAA18BE 
+ 798      1BFC
+ 799 01bc 563E4BC6 		.ascii	"V>K\306\322y \232\333\300\376x\315Z\364\037\335\250"
+ 799      D279209A 
+ 799      DBC0FE78 
+ 799      CD5AF41F 
+ 799      DDA8
+ 800 01ce 338807C7 		.ascii	"3\210\007\3071\261\022\020Y'\200\354_`Q\177\251\031"
+ 800      31B11210 
+ 800      592780EC 
+ 800      5F60517F 
+ 800      A919
+ 801 01e0 B54A0D2D 		.ascii	"\265J\015-\345z\237\223\311\234\357\240\340;M\256*\365"
+ 801      E57A9F93 
+ 801      C99CEFA0 
+ 801      E03B4DAE 
+ 801      2AF5
+ 802 01f2 B0C8EBBB 		.ascii	"\260\310\353\273<\203S\231a\027+\004~\272w\326&\341"
+ 802      3C835399 
+ 802      61172B04 
+ 802      7EBA77D6 
+ 802      26E1
+ 803 0204 69146355 		.ascii	"i\024cU!\014}"
+ 803      210C7D
+ 804              		.bss
+ 805              		.align	2
+ 806              		.set	.LANCHOR0,. + 0
+ 809              	Key:
+ 810 0000 00000000 		.space	4
+ 813              	RoundKey:
+ 814 0004 00000000 		.space	176
+ 814      00000000 
+ 814      00000000 
+ 814      00000000 
+ 814      00000000 
+ 817              	state:
+ 818 00b4 00000000 		.space	4
+ 821              	input_save:
+ 822 00b8 00000000 		.space	16
+ 822      00000000 
+ 822      00000000 
+ 822      00000000 
+ 823              		.text
+ 824              	.Letext0:
+ 825              		.file 2 "/usr/lib/gcc/arm-none-eabi/10.3.1/include/stdint.h"
+ 826              		.file 3 ".././crypto4/tiny-AES128-C/random_shift_rows.h"
+ 827              		.file 4 "/usr/include/newlib/stdlib.h"
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 aes.c
+     /tmp/cc29RQjz.s:16     .text.KeyExpansion:0000000000000000 $t
+     /tmp/cc29RQjz.s:23     .text.KeyExpansion:0000000000000000 KeyExpansion
+     /tmp/cc29RQjz.s:232    .text.KeyExpansion:00000000000000a0 $d
+     /tmp/cc29RQjz.s:239    .text.AddRoundKey:0000000000000000 $t
+     /tmp/cc29RQjz.s:245    .text.AddRoundKey:0000000000000000 AddRoundKey
+     /tmp/cc29RQjz.s:306    .text.AddRoundKey:0000000000000030 $d
+     /tmp/cc29RQjz.s:311    .text.SubBytes:0000000000000000 $t
+     /tmp/cc29RQjz.s:317    .text.SubBytes:0000000000000000 SubBytes
+     /tmp/cc29RQjz.s:388    .text.SubBytes:0000000000000028 $d
+     /tmp/cc29RQjz.s:394    .text.ShiftRows:0000000000000000 $t
+     /tmp/cc29RQjz.s:400    .text.ShiftRows:0000000000000000 ShiftRows
+     /tmp/cc29RQjz.s:502    .text.ShiftRows:000000000000005c $d
+     /tmp/cc29RQjz.s:508    .text.Cipher:0000000000000000 $t
+     /tmp/cc29RQjz.s:514    .text.Cipher:0000000000000000 Cipher
+     /tmp/cc29RQjz.s:583    .text.AES128_ECB_indp_setkey:0000000000000000 $t
+     /tmp/cc29RQjz.s:590    .text.AES128_ECB_indp_setkey:0000000000000000 AES128_ECB_indp_setkey
+     /tmp/cc29RQjz.s:609    .text.AES128_ECB_indp_setkey:0000000000000008 $d
+     /tmp/cc29RQjz.s:614    .text.AES128_ECB_indp_crypto:0000000000000000 $t
+     /tmp/cc29RQjz.s:621    .text.AES128_ECB_indp_crypto:0000000000000000 AES128_ECB_indp_crypto
+     /tmp/cc29RQjz.s:670    .text.AES128_ECB_indp_crypto:000000000000001c $d
+     /tmp/cc29RQjz.s:675    .text.AES128_ECB_encrypt:0000000000000000 $t
+     /tmp/cc29RQjz.s:682    .text.AES128_ECB_encrypt:0000000000000000 AES128_ECB_encrypt
+     /tmp/cc29RQjz.s:755    .text.AES128_ECB_encrypt:0000000000000028 $d
+     /tmp/cc29RQjz.s:784    .data:0000000000000100 Rcon
+     /tmp/cc29RQjz.s:788    .data:000000000000010b rsbox
+     /tmp/cc29RQjz.s:766    .data:0000000000000000 sbox
+     /tmp/cc29RQjz.s:805    .bss:0000000000000000 $d
+     /tmp/cc29RQjz.s:809    .bss:0000000000000000 Key
+     /tmp/cc29RQjz.s:813    .bss:0000000000000004 RoundKey
+     /tmp/cc29RQjz.s:817    .bss:00000000000000b4 state
+     /tmp/cc29RQjz.s:821    .bss:00000000000000b8 input_save
+
+UNDEFINED SYMBOLS
+malloc
+free
+shift_rows
