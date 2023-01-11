@@ -6,26 +6,27 @@ For more information please look at my report `report.pdf` or the slides `slides
 ### Abstract 
 
 
-> Side-Channel Assisted Reverse-Engineering (SCARE) is an attack technique aiming at recovering an undisclosed design of a cryptographic scheme from side-channel leakages of its implementation. First use of such technique in scientific literature was done by Novak in 2003 to attack the S-box design used in GSM protocol, by measuring consumed power of a smartcard. On another side, the Side-Channel-Assisted Differential Plaintext Attack (SCADPA) introduced by Breier and extended to See-In-The-Middle (SITM) attack by Bhasin are effective methods to recover secret key of a cryptosystem implementing the Substitution-Permutation Network (SPN). SCADPA is a chosen plaintext attack of the first round that subtracts the power trace measurements and makes use of a bit permutation vulnerability, while SITM is a combination of SCADPA with differential cryptanalysis methods. As such they are promising methods to be extended to recover the hidden structure of custom cryptosystems. Caforio et al. successfully deployed those SCADPA/SITM attacks to recover hidden SPN structure of unprotected Advanced Encryption Standard (AES) 128-like custom ciphers. 
+> Side-Channel Assisted Reverse-Engineering (SCARE) is an attack technique aiming at recovering an undisclosed design of a cryptographic scheme from side-channel leakages of its implementation. First use of such technique in scientific literature was done by Novak in 2003 to attack the S-box design used in GSM protocol, by measuring consumed power of a smartcard [Nov03]. On another side, the Side-Channel-Assisted Differential Plaintext Attack (SCADPA) introduced by Breier [BJB18] and extended to See-In-The-Middle (SITM) attack by Bhasin [BBH+ 19] are effective methods to recover the secret key of a cryptosystem with a Substitution-Permutation Network (SPN) structure. SCADPA is a side-channel power analysis attack that exploits leakages in differential power traces induced by plaintext differentials. SITM attack is a SCADPA strategy that targets partially masked SPN implementations. Caforio et al. [CBB21] successfully deployed this SCADPA attack to recover the hidden component functions of an unprotected Advanced Encryption Standard (AES) custom cipher.
 
-> In practice, software implementation of AES-like ciphers tends to be enhanced with counter-measures, like instruction shuffling for AK and SB layer, to thwart side-channel attacks. Such protective measures were for example adopted by the ANSSI agency. 
 
-> Below work demonstrate how the SCAPDA technique can be applied to practically recover the complete SPN of a protected AES cipher, implementing both instruction shuffling for AK and SB layer, with a 128-bit key size. As a first step, we review the practical SCAPDA approach from Caforio et al paper. Then, as a second step, this methodology is extended to the protected AES SP-network implemented on a 32-bit architecture micro-controller. 
+> In practice, software implementation of AES-like ciphers tends to be enhanced with countermeasures, like instructions shuffling or S-box masking, to thwart side-channel attacks [RPD09], [AG]. Such protective measures were for example adopted by the ANSSI standardization agency [LoES18].
+
+
+> Below work demonstrate how the SCAPDA technique can be applied to practically recover the complete description of a protected AES cipher, implementing instructions shuffling at SB and AK layers, with a 128-bit key size. As a first step, we review the practical SCAPDA approach from Caforio et al. paper. Then, as a second step, this methodology is extended to the protected AES implemented on a 32-bit architecture microcontroller.
+
 
 ## Tree
 
 ### Files: 
 
-
-* `Solving_equations.ipynb` : Python script to solve the 10 infered equations
-* `Tiny-AES-attack.ipynb` : Python script to attack the AES
-* `Tiny-AES-protected-attack.ipynb` : Python script to attack the protected AES
-* `report.pdf` : Report of the project
-* `slides.pdf` : Slides of the project
-* `README.md` : This file
-* `requirements.txt` : Python requirements
-* `AUTHORS.md` : List of authors
-* `abstract.shtml` : Abstract of the project
+* `README.md`: This file
+* `slides-source-code.zip` : Source code of the slides
+* `report-source-code.zip`: Source code of the report
+* `Tiny-AES-attack.ipynb`: Python script to attack the AES
+* `Solving_equations.ipynb`: Python script to solve the 10 infered equations
+* `Tiny-AES-protected-attack.ipynb`: Python script to attack the protected AES
+* `compute-prob-attack-find-activating-col.py`: Python script to compute the probability of the attack to find the activating column for the first try
+* `*.png`: Some images for the jupyter notebooks.
 
 ### Folders:
 
@@ -33,6 +34,8 @@ For more information please look at my report `report.pdf` or the slides `slides
 * `images` : Folder containing the images used in the report
 * `saved_profile`: Folder containing power traces profile of for different profiling techniques.
 * `hardware` : Folder containing the ChipWhisperer related files
+* `scripts` : Folder containing others scripts.
+
 
 # Environment
 
